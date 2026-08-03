@@ -87,7 +87,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
-          ? 'קוד ההפעלה שגוי. פנה לספק השירות לקבלת הקוד הנכון.'
+          ? 'הסוד שהזנת שגוי. ודא שהזנת את ה-ADMIN_BOOTSTRAP_SECRET הנכון (מוגדר אצלכם כמפעילי המערכת, ב-Railway).'
           : 'לא ניתן היה ליצור את החברה. ודא שכתובת השרת נכונה ושהשרת פעיל.',
       );
     } finally {
@@ -97,21 +97,25 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">
+        מסך זה מיועד אליכם כמפעילי PII Shield, ליצירת חברת לקוח חדשה - לא ללקוח עצמו. מלאו כאן את פרטי
+        הלקוח שעבורו אתם פותחים חשבון.
+      </p>
       <Field
-        label="שם החברה"
-        help="השם שיוצג עבורכם במסך הניהול ובדוחות. אפשר לשנות אותו מאוחר יותר."
+        label="שם חברת הלקוח"
+        help="השם שיוצג במסך הניהול ובדוחות של הלקוח הזה. אפשר לשנות אותו מאוחר יותר."
       >
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
       <Field
-        label="קוד הפעלה מספק השירות"
-        help="קוד חד-פעמי שקיבלתם מספק PII Shield כשסיכמתם על ההתקשרות. אין לכם קוד? פנו לספק השירות שלכם - לא ניתן ליצור אותו באופן עצמאי."
+        label="הסוד המנהלי שלכם (ADMIN_BOOTSTRAP_SECRET)"
+        help="לא קוד של הלקוח - זהו הסוד שאתם, כמפעילי המערכת, הגדרתם בשרת (משתנה הסביבה ADMIN_BOOTSTRAP_SECRET ב-Railway). הוא מזהה אתכם כמי שמורשה ליצור חברות לקוח חדשות, ואינו נמסר ללקוחות."
       >
         <input className="input" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} required />
       </Field>
       <Field
-        label="מייל מנהל (אופציונלי)"
-        help="לקבלת התראות על פעילות חריגה ודוחות תקופתיים. אפשר להשלים זאת גם מאוחר יותר במסך ההגדרות."
+        label="מייל איש קשר אצל הלקוח (אופציונלי)"
+        help="לקבלת התראות על פעילות חריגה ודוחות תקופתיים אצל הלקוח. אפשר להשלים זאת גם מאוחר יותר במסך ההגדרות."
       >
         <input
           type="email"
@@ -128,8 +132,8 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
         <div className="mt-3">
           <Field
             label="כתובת שרת ה-backend"
-            help="כתובת ה-API של שרת PII Shield שהוקם עבורכם. ברירת המחדל מתאימה כמעט תמיד - שנו זאת רק אם ספק השירות נתן לכם כתובת שונה במפורש."
-            howToFind="זו כתובת האינטרנט (URL) של שרת ה-backend, לדוגמה https://pii-shield.example.com - היא נמסרת לכם על ידי ספק השירות יחד עם קוד ההפעלה. אם אינכם בטוחים, השאירו את ברירת המחדל ופנו לספק."
+            help="כתובת ה-API של שרת PII Shield שהקמתם. זו כתובת קבועה של הפריסה שלכם - נשארת זהה לכל חברות הלקוח שתיצרו, ואין צורך לשנות אותה כאן אלא אם הקמתם פריסה נפרדת."
+            howToFind="זו כתובת האינטרנט (URL) של שרת ה-backend שלכם, לדוגמה https://backend-production-xxxx.up.railway.app - תמצאו אותה בלוח הבקרה של Railway, תחת השירות backend."
           >
             <input
               className="input"
