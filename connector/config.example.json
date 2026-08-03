@@ -1,0 +1,17 @@
+{
+  "backendUrl": "https://your-pii-shield-backend.example.com",
+  "apiKey": "the apiKey shown once when your company was created",
+  "connectorId": null,
+  "schedule": "0 * * * *",
+  "source": {
+    "type": "postgres",
+    "connectionString": "postgresql://user:password@localhost:5432/your_crm_db",
+    "table": "customers",
+    "fieldMappings": [
+      { "column": "full_name", "entityType": "name" },
+      { "column": "id_number", "entityType": "id_number" },
+      { "column": "email", "entityType": "email" },
+      { "column": "phone", "entityType": "phone" }
+    ]
+  }
+}

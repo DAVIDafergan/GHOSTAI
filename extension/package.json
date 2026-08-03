@@ -1,0 +1,39 @@
+{
+  "name": "extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build && node scripts/build-content-scripts.mjs",
+    "dev": "vite build --watch",
+    "test": "jest",
+    "e2e": "xvfb-run -a playwright test"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/chrome": "^0.0.287",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "dotenv": "^16.4.5",
+    "esbuild": "^0.24.0",
+    "express": "^4.21.1",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3",
+    "vite": "^5.4.11",
+    "vite-plugin-static-copy": "^2.2.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testRegex": ".*\\.(spec|test)\\.ts$",
+    "rootDir": ".",
+    "testPathIgnorePatterns": ["/node_modules/", "/e2e/"]
+  }
+}

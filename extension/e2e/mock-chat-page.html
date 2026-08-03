@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock AI Chat</title>
+  </head>
+  <body>
+    <textarea id="input" rows="4" cols="60"></textarea>
+    <br />
+    <button id="send">Send</button>
+    <div id="messages"></div>
+    <script>
+      document.getElementById('send').addEventListener('click', async () => {
+        const text = document.getElementById('input').value;
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await res.json();
+        const div = document.createElement('div');
+        div.className = 'response';
+        div.textContent = data.reply;
+        document.getElementById('messages').appendChild(div);
+      });
+    </script>
+  </body>
+</html>

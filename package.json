@@ -1,0 +1,10 @@
+{
+  "name": "pii-shield",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "connector",
+    "extension",
+    "admin-console"
+  ]
+}

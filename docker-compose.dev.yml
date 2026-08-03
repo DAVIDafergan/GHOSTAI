@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pii-shield-postgres
+    environment:
+      POSTGRES_USER: pii
+      POSTGRES_PASSWORD: pii_dev_password
+      POSTGRES_DB: pii_shield
+    ports:
+      - "5433:5432"
+    volumes:
+      - pii-shield-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  pii-shield-postgres-data:

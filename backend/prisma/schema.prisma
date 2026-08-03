@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  adminEmail    String?
+  apiKeyHash    String   @unique
+  entitySalt    String   @unique @default(uuid())
+  status        String   @default("active") // "active" | "pending_deletion"
+  confidenceThreshold Int @default(50)
+  enabledEntityTypes String[] @default(["name", "id_number", "case_number", "amount", "email", "phone"])
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  connectors    Connector[]
+  employees     Employee[]
+  entities      SensitiveEntity[]
+  auditLogs     AuditLog[]
+}
+
+model Connector {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  sourceType    String    // "postgres" | "csv" | "salesforce" | "generic_api"
+  status        String    @default("pending") // "pending" | "connected" | "syncing" | "error" | "sync_incomplete"
+  lastSyncAt    DateTime?
+  syncStartedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  entities      SensitiveEntity[]
+
+  @@index([companyId])
+}
+
+model Employee {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  email         String
+  extensionKeyHash String @unique
+  activatedAt   DateTime?
+  disabledAt    DateTime?
+  lastActiveAt  DateTime?
+  createdAt     DateTime  @default(now())
+
+  auditLogs     AuditLog[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+model SensitiveEntity {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  connectorId   String?
+  connector     Connector? @relation(fields: [connectorId], references: [id])
+  entityHash    String    // HMAC-SHA256(normalized value, company.entitySalt) - never the raw value
+  entityType    String    // "name" | "id_number" | "case_number" | "amount" | "email" | "phone"
+  confidence    Int       @default(100)
+  createdAt     DateTime  @default(now())
+  seenAt        DateTime  @default(now())
+
+  @@unique([companyId, entityHash, entityType])
+  @@index([companyId, entityHash])
+  @@index([companyId, connectorId])
+}
+
+model AuditLog {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  employeeId    String
+  employee      Employee  @relation(fields: [employeeId], references: [id])
+  eventType     String    // "blocked" | "allowed" | "user_override"
+  entityType    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([companyId, createdAt])
+}
