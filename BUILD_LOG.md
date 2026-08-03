@@ -485,6 +485,97 @@ entropy names), `backend/README.md` (env vars, auth model, endpoint table),
 
 ---
 
+## Railway deployment (production) — 2026-08-03
+
+Project `beautiful-bravery` (Railway, environment `production`) had already
+been created and connected to the `DAVIDafergan/GHOSTAI` GitHub repo with 4
+services (backend, admin-console, connector, extension) before this
+session. Investigated and fixed via the `railway` CLI + GraphQL API
+(Railway's MCP server was unreachable - OAuth callback issue on this
+Chromebook/Linux environment - so the CLI, already authenticated, was used
+directly instead).
+
+**Deleted:** the `extension` service. A Chrome extension is not a server -
+it was deployed as one by mistake and had nothing to serve; there is no
+"fix," it simply shouldn't exist as a Railway service.
+
+**Real bugs found and fixed:**
+- **Backend build failed** (`TS2305: Module "@prisma/client" has no
+  exported member 'Company'`, 18 errors). Root cause: Railway's build never
+  ran `prisma generate` - it only ran `npm install` then `nest build`, so
+  `@prisma/client` stayed an empty stub. This never surfaced locally
+  because `npx prisma migrate dev` (run constantly during weeks 1-4)
+  generates the client as a side effect. Fixed with a `postinstall: prisma
+  generate` script in `backend/package.json`.
+- **Backend had no database and no required secrets.** The project had no
+  Postgres at all (`railway add --database postgres`), and `DATABASE_URL`,
+  `JWT_SECRET`, `ADMIN_BOOTSTRAP_SECRET` were all unset. Wired
+  `DATABASE_URL` as a live reference (`${{Postgres.DATABASE_URL}}`, stays in
+  sync if credentials ever rotate) rather than a copied literal value.
+  Generated `JWT_SECRET` randomly (unused by any active auth check right
+  now, so safe to auto-generate). `ADMIN_BOOTSTRAP_SECRET` was provided by
+  the user directly, piped straight into `railway variable set --stdin` -
+  never invented or logged.
+- **Backend had no migration step on boot.** Railway has no separate
+  "release phase" the way some other PaaS's do. Changed `start` from `nest
+  start` (dev-mode compile-and-run) to `prisma migrate deploy && node
+  dist/main`, so pending migrations always apply before the app boots.
+- **admin-console was silently running the wrong process.** Logs showed
+  `> vite` / `Local: http://localhost:5173` in "production" - the Vite
+  *dev* server, bound to loopback, on a hardcoded port, ignoring Railway's
+  `$PORT` entirely. Root cause: no `start` script existed in
+  `admin-console/package.json` at all, so Railway's builder (Railpack)
+  silently fell back to the `dev` script. It reported deploy status
+  "SUCCESS" throughout, because "the process didn't immediately exit" is a
+  different signal from "the app actually works" - a real product bug that
+  monitoring by status label alone would never catch. Fixed by adding
+  `serve` as a real (non-dev) dependency and a
+  `start: serve -s dist -l ${PORT:-4173}` script; verified locally
+  (`curl` → 200) before pushing.
+- **Even after the fix, still 502'd.** Two separate causes, found only by
+  actually querying Railway's GraphQL API directly (`railway api`), since
+  the CLI's own status/log output doesn't surface either:
+  1. `railway service redeploy` (no `--from-source`) replays the *existing*
+     deployment's frozen command snapshot - it does not pick up an updated
+     `serviceInstance.startCommand`. Had to use `--from-source` to force a
+     genuinely new build+deploy.
+  2. The service's `ServiceDomain.targetPort` was hardcoded to `5173` -
+     presumably auto-detected once when it was first (wrongly) running the
+     Vite dev server - so Railway's edge kept routing to port 5173 even
+     after the container switched to listening on Railway's dynamically
+     assigned `$PORT` (8080). Backend's own domain, by contrast, has
+     `targetPort: null` (follows whatever port the app actually listens
+     on) and never had this problem. Cleared it via
+     `serviceDomainUpdate(targetPort: null)`. This is the kind of
+     stale-cached-config bug that only shows up when you actually curl the
+     public URL after a "successful" deploy, not when you just read the
+     deploy status.
+- **Connector crashes on start** (`Usage: pii-shield-connector...` then
+  exit 1). Root cause: it's a CLI that hard-requires `--config <path>`
+  pointing at a JSON file with a customer's own CRM connection string and
+  field mappings; nothing on Railway supplies one, and `loadConfig()` only
+  reads from a file, never from env vars. This isn't a bug to patch - per
+  the original spec the connector is meant to run *inside a customer's own
+  network* (there's already a dedicated `connector/Dockerfile` for exactly
+  that), not as a permanent service in the operator's own Railway project.
+  Asked the user; decision was to leave it un-deployed rather than build
+  env-var-driven demo config. Railway does not support scaling a service to
+  0 replicas (`numReplicas`/`multiRegionConfig` both reject values below 1
+  server-side) - there is no "pause without deleting" primitive - so it
+  sits in its natural `ON_FAILURE` end state (retries exhausted at
+  `restartPolicyMaxRetries: 10`, then stops) rather than crash-looping
+  forever. Revisit if/when there's an actual demo data source to point it
+  at.
+
+**Verified at the end:** backend `GET /` → 200 with a real Postgres behind
+it (`Nest application successfully started`, all modules initialized);
+admin-console `GET /` → 200 serving the real built SPA (confirmed by
+fetching the actual HTML, not just a status code); extension service gone;
+connector intentionally left stopped, not fixed. All via public HTTPS
+URLs, not internal-only checks.
+
+---
+
 ## Final summary
 
 **What works, verified end-to-end against real infrastructure (not mocked)
