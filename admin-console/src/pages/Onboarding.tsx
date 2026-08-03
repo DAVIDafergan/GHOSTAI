@@ -97,21 +97,22 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Field label="כתובת שרת ה-backend">
-        <input
-          className="input"
-          value={backendUrl}
-          onChange={(e) => setBackendUrl(e.target.value)}
-          required
-        />
-      </Field>
-      <Field label="קוד הפעלה מספק השירות">
-        <input className="input" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} required />
-      </Field>
-      <Field label="שם החברה">
+      <Field
+        label="שם החברה"
+        help="השם שיוצג עבורכם במסך הניהול ובדוחות. אפשר לשנות אותו מאוחר יותר."
+      >
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
-      <Field label="מייל מנהל (אופציונלי)">
+      <Field
+        label="קוד הפעלה מספק השירות"
+        help="קוד חד-פעמי שקיבלתם מספק PII Shield כשסיכמתם על ההתקשרות. אין לכם קוד? פנו לספק השירות שלכם - לא ניתן ליצור אותו באופן עצמאי."
+      >
+        <input className="input" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} required />
+      </Field>
+      <Field
+        label="מייל מנהל (אופציונלי)"
+        help="לקבלת התראות על פעילות חריגה ודוחות תקופתיים. אפשר להשלים זאת גם מאוחר יותר במסך ההגדרות."
+      >
         <input
           type="email"
           className="input"
@@ -119,6 +120,27 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
           onChange={(e) => setAdminEmail(e.target.value)}
         />
       </Field>
+
+      <details className="rounded-lg border border-gray-200 p-3 text-sm">
+        <summary className="cursor-pointer select-none font-medium text-gray-600">
+          הגדרות מתקדמות (לרוב אין צורך לשנות)
+        </summary>
+        <div className="mt-3">
+          <Field
+            label="כתובת שרת ה-backend"
+            help="כתובת ה-API של שרת PII Shield שהוקם עבורכם. ברירת המחדל מתאימה כמעט תמיד - שנו זאת רק אם ספק השירות נתן לכם כתובת שונה במפורש."
+            howToFind="זו כתובת האינטרנט (URL) של שרת ה-backend, לדוגמה https://pii-shield.example.com - היא נמסרת לכם על ידי ספק השירות יחד עם קוד ההפעלה. אם אינכם בטוחים, השאירו את ברירת המחדל ופנו לספק."
+          >
+            <input
+              className="input"
+              value={backendUrl}
+              onChange={(e) => setBackendUrl(e.target.value)}
+              required
+            />
+          </Field>
+        </div>
+      </details>
+
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" className="btn-primary" disabled={loading}>
         {loading ? 'יוצר חברה...' : 'המשך'}
@@ -155,9 +177,40 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
     ? `docker run -v $(pwd)/connector.config.json:/config/connector.config.json pii-shield-connector`
     : null;
 
+  const exampleConfig =
+    sourceType === 'csv'
+      ? `{
+  "backendUrl": "${draft.backendUrl}",
+  "apiKey": "<המפתח שמוצג למטה>",
+  "source": {
+    "type": "csv",
+    "filePath": "/path/to/customers.csv",
+    "fieldMappings": [
+      { "column": "full_name", "entityType": "name" },
+      { "column": "id_number", "entityType": "id_number" }
+    ]
+  }
+}`
+      : `{
+  "backendUrl": "${draft.backendUrl}",
+  "apiKey": "<המפתח שמוצג למטה>",
+  "source": {
+    "type": "postgres",
+    "connectionString": "postgresql://user:password@host:5432/dbname",
+    "table": "customers",
+    "fieldMappings": [
+      { "column": "full_name", "entityType": "name" },
+      { "column": "id_number", "entityType": "id_number" }
+    ]
+  }
+}`;
+
   return (
     <div className="space-y-4">
-      <Field label="סוג מקור הנתונים">
+      <Field
+        label="סוג מקור הנתונים"
+        help="מאיזה מקור ה-connector יקרא את הנתונים הרגישים שיש להגן עליהם (למשל שמות ומספרי זהות של לקוחות)."
+      >
         <select
           className="input"
           value={sourceType}
@@ -181,13 +234,43 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
       {connectorId && (
         <div className="space-y-3 rounded-lg bg-gray-100 p-4 text-sm">
           <p>
-            הרץ את ה-connector ברשת שלכם עם ה-API key הבא (מוצג פעם אחת בלבד, שמור אותו במקום בטוח):
+            ה-connector הוא תוכנה קטנה שרצה בתוך הרשת שלכם (לא אצלנו) - היא קוראת את הנתונים הרגישים
+            מקומית, שולחת רק חתימות מוצפנות שלהם החוצה, ולעולם לא את הערכים המקוריים.
           </p>
-          <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">
-            {draft.apiKey}
-          </code>
-          <p>ולאחר מכן:</p>
-          <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">{dockerCommand}</code>
+
+          <div>
+            <p className="mb-1 font-medium text-gray-700">1. מפתח ה-API של החברה שלכם</p>
+            <p className="mb-1 text-xs text-gray-500">
+              מוצג פעם אחת בלבד - העתיקו ושמרו אותו במקום בטוח (למשל מנהל סיסמאות). תזדקקו לו בקובץ
+              ההגדרות בשלב 3.
+            </p>
+            <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">
+              {draft.apiKey}
+            </code>
+          </div>
+
+          <div>
+            <p className="mb-1 font-medium text-gray-700">
+              2. הכינו קובץ הגדרות בשם <code>connector.config.json</code> במחשב שממנו ירוץ ה-connector
+            </p>
+            <p className="mb-1 text-xs text-gray-500">דוגמה מלאה שאפשר להעתיק ולערוך:</p>
+            <pre className="overflow-x-auto rounded bg-gray-800 p-2 text-xs text-green-300" dir="ltr">
+              {exampleConfig}
+            </pre>
+            <HowToFind label="איך מוצאים host / port / connection string / credentials?">
+              אלו פרטי ההתחברות למסד הנתונים שלכם (למשל PostgreSQL): host ו-port הם הכתובת והפורט של
+              השרת שבו יושב מסד הנתונים (בדרך כלל 5432 עבור PostgreSQL), ו-user/password הם פרטי
+              משתמש עם הרשאת קריאה בלבד. פרטים אלה נמצאים אצל מי שמנהל את מסד הנתונים או את מערכת
+              ה-CRM אצלכם (צוות IT / DevOps), או בהגדרות החיבור של הכלי שבו משתמשים לניהול הנתונים.
+              אל תשתמשו בפרטי ההתחברות הראשיים (root) - מומלץ ליצור משתמש ייעודי לקריאה בלבד.
+            </HowToFind>
+          </div>
+
+          <div>
+            <p className="mb-1 font-medium text-gray-700">3. הריצו את ה-connector עם הקובץ שהכנתם</p>
+            <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">{dockerCommand}</code>
+          </div>
+
           <button className="btn-secondary" onClick={handleCheckConnection} disabled={checking}>
             {checking ? 'בודק...' : 'בדוק חיבור'}
           </button>
@@ -295,11 +378,32 @@ function StepDone({ draft, onFinish }: { draft: Draft; onFinish: () => void }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  help,
+  howToFind,
+  children,
+}: {
+  label: string;
+  help?: string;
+  howToFind?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
       {children}
+      {help && <p className="mt-1 text-xs text-gray-500">{help}</p>}
+      {howToFind && <HowToFind label="איך מוצאים את זה?">{howToFind}</HowToFind>}
     </label>
+  );
+}
+
+function HowToFind({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer select-none text-xs font-medium text-indigo-600">{label}</summary>
+      <p className="mt-1 text-xs text-gray-500">{children}</p>
+    </details>
   );
 }
