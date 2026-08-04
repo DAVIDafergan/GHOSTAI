@@ -576,6 +576,71 @@ URLs, not internal-only checks.
 
 ---
 
+## Onboarding wizard UX pass + extension options page — 2026-08-04
+
+Two rounds of UX fixes on the admin-console onboarding wizard, then the
+same "the popup closes" complaint on the extension side.
+
+**Onboarding wizard, round 1:** added helper text and "how do I find this?"
+disclosures to every field across all 4 steps (steps 3-4 turned out to have
+no input fields at all, so nothing to do there). Moved the backend URL out
+of step 1 into a collapsed "advanced settings" section, since it's server
+infrastructure, not a company detail. Verified with real Playwright
+screenshots of all 4 steps against a real local backend before pushing.
+
+**Onboarding wizard, round 2 (real bug, not cosmetic):** the user got stuck
+on step 1 because the "activation code" field's copy was written as if the
+person filling the form is a *customer* who received a one-time code from
+the PII Shield provider. That's backwards - this whole screen is gated by
+`ADMIN_BOOTSTRAP_SECRET`, known only to the operator, and is the
+*operator's own* tool for creating a new customer company (per the
+architecture already documented in `admin-console/README.md` - there is no
+separate self-serve signup). Relabeled the field, rewrote the error/help
+text, and added an intro line clarifying who the screen is for. Flagged
+but did not build (per user's choice) the deeper fix: splitting this into
+a real operator-only "create company" form plus a separate customer-facing
+"connect your data source" link using just the apiKey, so an operator could
+actually hand off steps 2-4 to a customer's IT person without exposing the
+master secret.
+
+**A second, unrelated bug surfaced while debugging step 1**: an actual
+submission attempt produced zero HTTP requests against the backend at all
+(confirmed via `railway logs --http --path /admin/companies --since 30m` -
+nothing, not even a rejected one) - the "backend URL" field still had its
+`http://localhost:3000` default, which on a real deployed admin-console
+means "the user's own machine," not Railway. The browser fails to connect
+before the request ever leaves the device, surfacing as the same generic
+network-error message as a wrong secret would. Not a code bug - the field
+already exists and is documented - but confirms the UX gap was real:
+nothing in the UI warns you the default is almost certainly wrong once
+you're not running against localhost.
+
+**Extension options page:** the popup closes on tab-switch (standard
+Chrome behavior for `default_popup`), which makes pasting a long backend
+URL or extension key into it painful - you lose focus, it closes, you lose
+your progress. Added a proper options page (`options_ui` with
+`open_in_tab: true`) that opens as a normal persistent tab. Extracted the
+existing popup's form logic into a shared `useSettingsForm` hook so the
+popup and the new options page share one implementation instead of two
+copies drifting apart; the popup keeps its compact form plus a new "open
+as full page" link that calls `chrome.runtime.openOptionsPage()`.
+Verified with a real loaded extension in real Chromium: direct navigation
+to `options.html` renders correctly, and - the actual bug being fixed -
+typed values in it survive switching to another tab and back (the popup
+would have simply closed). One thing that could **not** be verified this
+way: whether the popup's "open as full page" link actually opens a new tab
+when clicked - `chrome.runtime.openOptionsPage()` reports success
+(`chrome.runtime.lastError` is null) but no new tab appears in Playwright's
+tracked pages. This looks like a Playwright/CDP limitation specific to
+extension-triggered tab creation in an automated context (the manifest is
+confirmed correctly loaded with `open_in_tab: true` via
+`chrome.runtime.getManifest()`), not a product bug, but it's genuinely
+unverified - worth a real manual click after installing the built
+extension. Full unit suite (19/19) and the existing e2e PII-blocking test
+still pass unchanged.
+
+---
+
 ## Final summary
 
 **What works, verified end-to-end against real infrastructure (not mocked)

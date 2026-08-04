@@ -1,38 +1,8 @@
-import { useEffect, useState, FormEvent } from 'react';
-import { getConfig, setConfig, ExtensionConfig } from '../shared/config';
+import { useSettingsForm } from '../shared/useSettingsForm';
 
 export function Popup() {
-  const [backendUrl, setBackendUrl] = useState('');
-  const [extensionKey, setExtensionKey] = useState('');
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
-  const [statusMessage, setStatusMessage] = useState('');
-
-  useEffect(() => {
-    getConfig().then((config) => {
-      if (config) {
-        setBackendUrl(config.backendUrl);
-        setExtensionKey(config.extensionKey);
-      }
-    });
-  }, []);
-
-  async function handleSave(e: FormEvent) {
-    e.preventDefault();
-    setStatus('checking');
-    const config: ExtensionConfig = { backendUrl, extensionKey };
-    try {
-      const res = await fetch(`${backendUrl}/employees/me`, {
-        headers: { 'x-extension-key': extensionKey },
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      await setConfig(config);
-      setStatus('ok');
-      setStatusMessage('מחובר בהצלחה');
-    } catch {
-      setStatus('error');
-      setStatusMessage('לא ניתן להתחבר - בדוק את כתובת השרת ומפתח ההתקנה');
-    }
-  }
+  const { backendUrl, setBackendUrl, extensionKey, setExtensionKey, status, statusMessage, handleSave } =
+    useSettingsForm();
 
   return (
     <div style={{ width: 280, padding: 16, fontFamily: 'system-ui, sans-serif', direction: 'rtl' }}>
@@ -58,6 +28,22 @@ export function Popup() {
       {statusMessage && (
         <p style={{ fontSize: 12, marginTop: 8, color: status === 'ok' ? 'green' : 'crimson' }}>{statusMessage}</p>
       )}
+      <button
+        type="button"
+        onClick={() => chrome.runtime.openOptionsPage()}
+        style={{
+          width: '100%',
+          marginTop: 8,
+          background: 'none',
+          border: 'none',
+          color: '#4f46e5',
+          fontSize: 12,
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        פתח כעמוד מלא (נוח יותר להדבקת ערכים - החלון הזה נסגר במעבר בין טאבים)
+      </button>
     </div>
   );
 }
