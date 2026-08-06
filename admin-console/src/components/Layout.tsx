@@ -23,6 +23,9 @@ export function Layout({ children }: { children: ReactNode }) {
           <NavLink to="/employees" className={navLinkClass}>
             עובדים
           </NavLink>
+          <NavLink to="/sensitive-data" className={navLinkClass}>
+            מידע רגיש
+          </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
             הגדרות רגישות
           </NavLink>

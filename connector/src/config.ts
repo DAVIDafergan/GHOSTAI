@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 export type EntityType = 'name' | 'id_number' | 'case_number' | 'amount' | 'email' | 'phone';
 
@@ -28,6 +29,14 @@ export interface ConnectorConfig {
   connectorId?: string;
   schedule?: string;
   source: SourceConfig;
+  /** Path to the local (never synced centrally) file tracking raw entity
+   * values, first/last-seen times, and admin exclusions/manual additions.
+   * Defaults to connector-state.json in the current working directory. */
+  stateFilePath?: string;
+  /** If set, `daemon` mode also starts the local HTTP API (see server.ts)
+   * on this port, for the admin console's "sensitive data" tab to query
+   * directly. Not set = API disabled, daemon just runs scheduled syncs. */
+  apiPort?: number;
 }
 
 const VALID_ENTITY_TYPES: EntityType[] = ['name', 'id_number', 'case_number', 'amount', 'email', 'phone'];
@@ -37,6 +46,10 @@ export function loadConfig(path: string): ConnectorConfig {
   const config = JSON.parse(raw) as ConnectorConfig;
   validateConfig(config);
   return config;
+}
+
+export function resolveStateFilePath(config: ConnectorConfig): string {
+  return resolve(config.stateFilePath ?? './connector-state.json');
 }
 
 export function validateConfig(config: ConnectorConfig): void {

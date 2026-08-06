@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, Company } from '../api/client';
 import { useSession } from '../context/SessionContext';
-
-const ENTITY_TYPE_LABELS: Record<string, string> = {
-  name: 'שם',
-  id_number: 'ת.ז',
-  case_number: 'מספר תיק',
-  amount: 'סכום',
-  email: 'מייל',
-  phone: 'טלפון',
-};
-const ALL_ENTITY_TYPES = Object.keys(ENTITY_TYPE_LABELS);
+import { ENTITY_TYPE_LABELS, ALL_ENTITY_TYPES } from '../entityTypes';
 
 export function Settings() {
   const { session } = useSession();

@@ -19,6 +19,11 @@ export class CompaniesController {
     };
   }
 
+  @Get()
+  listAll() {
+    return this.companiesService.listAllWithStats();
+  }
+
   @Get(':id')
   get(@Param('id') id: string) {
     return this.companiesService.findById(id);

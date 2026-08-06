@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { api, AuditLogEntry, EmployeeSummary } from '../api/client';
 import { useSession } from '../context/SessionContext';
 import { COLORS } from '../colors';
+import { ENTITY_TYPE_LABELS as ENTITY_TYPE_LABEL } from '../entityTypes';
 
 const STATUS_LABEL: Record<EmployeeSummary['status'], string> = {
   active: 'פעיל',
@@ -17,15 +18,6 @@ const STATUS_COLOR: Record<EmployeeSummary['status'], string> = {
   not_installed: COLORS.neutral,
   inactive: COLORS.warning,
   disabled: COLORS.critical,
-};
-
-const ENTITY_TYPE_LABEL: Record<string, string> = {
-  name: 'שם',
-  id_number: 'ת.ז',
-  case_number: 'מספר תיק',
-  amount: 'סכום',
-  email: 'אימייל',
-  phone: 'טלפון',
 };
 
 export function EmployeeProfile() {

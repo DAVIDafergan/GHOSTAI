@@ -491,4 +491,70 @@ describe('PII Shield backend (e2e)', () => {
     await prisma.sensitiveEntity.deleteMany({ where: { companyId } });
     await prisma.company.delete({ where: { id: companyId } });
   });
+
+  it('lists all companies with aggregated stats for the super-admin dashboard, gated by the admin secret', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/admin/companies')
+      .set('x-admin-secret', ADMIN_SECRET)
+      .send({ name: 'Super Admin List Test Co' })
+      .expect(201);
+    const apiKey = companyRes.body.apiKey as string;
+    const companyId = companyRes.body.id as string;
+
+    await request(app.getHttpServer())
+      .post('/employees')
+      .set('x-api-key', apiKey)
+      .send({ email: 'a@super-admin-list-test.test' })
+      .expect(201);
+    const employeeRes = await request(app.getHttpServer())
+      .post('/employees')
+      .set('x-api-key', apiKey)
+      .send({ email: 'b@super-admin-list-test.test' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/audit-logs')
+      .set('x-extension-key', employeeRes.body.extensionKey)
+      .send({ eventType: 'blocked', entityType: 'name' })
+      .expect(201);
+
+    const connectorRes = await request(app.getHttpServer())
+      .post('/connectors')
+      .set('x-api-key', apiKey)
+      .send({ sourceType: 'csv' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/connectors/${connectorRes.body.id}/sync/start`)
+      .set('x-api-key', apiKey)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/connectors/${connectorRes.body.id}/sync/complete`)
+      .set('x-api-key', apiKey)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/health-check/run')
+      .set('x-api-key', apiKey)
+      .expect(201);
+
+    await request(app.getHttpServer()).get('/admin/companies').expect(401);
+
+    const listRes = await request(app.getHttpServer())
+      .get('/admin/companies')
+      .set('x-admin-secret', ADMIN_SECRET)
+      .expect(200);
+    const entry = listRes.body.find((c: { id: string }) => c.id === companyId);
+    expect(entry).toBeDefined();
+    expect(entry.employeeCount).toBe(2);
+    expect(entry.blocksThisMonth).toBe(1);
+    expect(entry.connectorStatus).toBe('connected');
+    expect(entry.healthCheckSuccess).toBe(true);
+
+    await prisma.healthCheck.deleteMany({ where: { companyId } });
+    await prisma.auditLog.deleteMany({ where: { companyId } });
+    await prisma.sensitiveEntity.deleteMany({ where: { companyId } });
+    await prisma.connector.deleteMany({ where: { companyId } });
+    await prisma.employee.deleteMany({ where: { companyId } });
+    await prisma.company.delete({ where: { id: companyId } });
+  });
 });

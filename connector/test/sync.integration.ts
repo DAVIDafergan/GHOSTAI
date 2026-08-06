@@ -13,9 +13,12 @@
  */
 import { config as loadDotenv } from 'dotenv';
 import { resolve } from 'path';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { ChildProcess, spawn } from 'child_process';
 import { runSync } from '../src/sync';
 import { ConnectorConfig } from '../src/config';
+import { LocalStateStore } from '../src/localState';
 
 const BACKEND_DIR = resolve(__dirname, '../../backend');
 loadDotenv({ path: resolve(BACKEND_DIR, '.env') });
@@ -67,6 +70,7 @@ async function main() {
   backendProcess.stderr?.on('data', (d) => process.stderr.write(`[backend] ${d}`));
 
   let companyId: string | undefined;
+  const stateDir = mkdtempSync(resolve(tmpdir(), 'pii-shield-connector-state-'));
 
   try {
     await waitForServer(`${BASE_URL}/`, 90000);
@@ -85,6 +89,7 @@ async function main() {
     const config: ConnectorConfig = {
       backendUrl: BASE_URL,
       apiKey: company.apiKey,
+      stateFilePath: resolve(stateDir, 'connector-state.json'),
       source: {
         type: 'postgres',
         connectionString: 'postgresql://pii:pii_dev_password@localhost:5433/customer_crm_demo',
@@ -128,6 +133,47 @@ async function main() {
 
     assert(total === EXPECTED_UNIQUE_HASHES, `expected ${EXPECTED_UNIQUE_HASHES} entities via pagination, got ${total}`);
 
+    // A manually-added entity (never present in the source) should sync
+    // like any other, and an excluded one should be pruned by the
+    // existing sync/complete logic once it's no longer resent - real
+    // end-to-end proof of the local-state exclude/manual behavior, not
+    // just the unit-level LocalStateStore tests.
+    config.connectorId = result.connectorId;
+    const store = new LocalStateStore(config.stateFilePath as string);
+    store.addManual('Manual Test Person', 'name');
+
+    async function countEntities(): Promise<number> {
+      let c = 0;
+      let cur: string | null = null;
+      do {
+        const url = new URL(`${BASE_URL}/entities`);
+        url.searchParams.set('limit', '50');
+        if (cur) url.searchParams.set('cursor', cur);
+        const res = await fetch(url, { headers: { 'x-extension-key': employee.extensionKey } });
+        const page = (await res.json()) as { entities: unknown[]; nextCursor: string | null };
+        c += page.entities.length;
+        cur = page.nextCursor;
+      } while (cur);
+      return c;
+    }
+
+    await runSync(config, (m) => log(`[runSync manual] ${m}`), store);
+    const withManual = await countEntities();
+    assert(
+      withManual === EXPECTED_UNIQUE_HASHES + 1,
+      `expected ${EXPECTED_UNIQUE_HASHES + 1} entities after adding a manual one, got ${withManual}`,
+    );
+    log('manual entity synced OK');
+
+    store.setExcluded('Manual Test Person', 'name', true);
+    await runSync(config, (m) => log(`[runSync excluded] ${m}`), store);
+    const afterExclude = await countEntities();
+    assert(
+      afterExclude === EXPECTED_UNIQUE_HASHES,
+      `expected excluded manual entity to be pruned back to ${EXPECTED_UNIQUE_HASHES}, got ${afterExclude}`,
+    );
+    log('excluded entity pruned OK');
+
     log('ALL ASSERTIONS PASSED');
   } finally {
     if (companyId) {
@@ -137,6 +183,7 @@ async function main() {
       }).catch(() => undefined);
     }
     backendProcess.kill();
+    rmSync(stateDir, { recursive: true, force: true });
   }
 }
 

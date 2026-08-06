@@ -5,6 +5,7 @@
     "backend",
     "connector",
     "extension",
-    "admin-console"
+    "admin-console",
+    "super-admin"
   ]
 }
