@@ -5,7 +5,8 @@ import { useSession } from '../context/SessionContext';
 export function Login() {
   const { login } = useSession();
   const [backendUrl, setBackendUrl] = useState('http://localhost:3000');
-  const [adminSecret, setAdminSecret] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -13,14 +14,14 @@ export function Login() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const session = { backendUrl: backendUrl.trim().replace(/\/$/, ''), adminSecret };
+    const session = { backendUrl: backendUrl.trim().replace(/\/$/, ''), username, password };
     try {
       await api.verifyAndListCompanies(session);
       login(session);
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
-          ? 'ADMIN_BOOTSTRAP_SECRET שגוי.'
+          ? 'שם משתמש או סיסמה שגויים.'
           : 'לא ניתן היה להתחבר. ודאו שכתובת השרת נכונה ושהשרת פעיל.',
       );
     } finally {
@@ -32,7 +33,8 @@ export function Login() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-8" dir="rtl">
       <h1 className="mb-1 text-2xl font-bold text-indigo-700">Nistar - Super Admin</h1>
       <p className="mb-6 text-sm text-gray-500">
-        גישה למפעיל המערכת בלבד - לא למנהלי חברות. הסוד כאן הוא ADMIN_BOOTSTRAP_SECRET, לא apiKey של אף חברה.
+        גישה למפעיל המערכת בלבד - לא למנהלי חברות. שם המשתמש והסיסמה כאן הם חשבון המפעיל
+        (SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD), לא apiKey של אף חברה.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <label className="block">
@@ -40,12 +42,23 @@ export function Login() {
           <input className="input" value={backendUrl} onChange={(e) => setBackendUrl(e.target.value)} required />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">ADMIN_BOOTSTRAP_SECRET</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700">שם משתמש</span>
+          <input
+            className="input"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-gray-700">סיסמה</span>
           <input
             type="password"
             className="input"
-            value={adminSecret}
-            onChange={(e) => setAdminSecret(e.target.value)}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
           />
         </label>

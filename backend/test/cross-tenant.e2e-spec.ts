@@ -6,7 +6,8 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET as string;
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME as string;
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD as string;
 
 jest.setTimeout(30000);
 
@@ -47,7 +48,8 @@ describe('Cross-tenant authorization (e2e)', () => {
 
     const companyA = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Cross-Tenant Co A' })
       .expect(201);
     companyAApiKey = companyA.body.apiKey;
@@ -55,7 +57,8 @@ describe('Cross-tenant authorization (e2e)', () => {
 
     const companyB = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Cross-Tenant Co B' })
       .expect(201);
     companyBApiKey = companyB.body.apiKey;

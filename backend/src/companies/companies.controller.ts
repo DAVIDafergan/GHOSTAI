@@ -2,23 +2,24 @@ import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/c
 import { Throttle } from '@nestjs/throttler';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
-import { AdminBootstrapGuard } from '../common/guards/admin-bootstrap.guard';
+import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 
-// Every endpoint here is gated by the same shared ADMIN_BOOTSTRAP_SECRET
+// Every endpoint here is gated by the same operator username+password
 // (checked before any business logic runs), so any of them is a viable
 // brute-force vector, not just POST - throttle the whole controller
-// strictly. IP-keyed (see CustomThrottlerGuard - x-admin-secret isn't
-// x-api-key/x-extension-key, so this correctly falls back to IP), which is
-// exactly the signal we want to limit for this specific attack.
+// strictly. IP-keyed (see CustomThrottlerGuard - x-admin-username/
+// x-admin-password aren't x-api-key/x-extension-key, so this correctly
+// falls back to IP), which is exactly the signal we want to limit for
+// this specific attack.
 //
 // limit=30/15min still comfortably covers real operator usage (creating a
-// handful of companies) - the existing e2e suite alone makes 12 calls to
-// this controller in one run, which a naive low limit would break - while
-// remaining overwhelmingly restrictive against brute-forcing even a weak
-// secret: at 30/900s, exhausting a 9-digit numeric space (10^9, ~5x10^8
-// expected attempts) would take on the order of hundreds of years.
+// handful of companies) - the existing e2e suite alone makes several calls
+// to this controller in one run, which a naive low limit would break -
+// while remaining overwhelmingly restrictive against brute-forcing a
+// username+password pair, which is already far higher-entropy than the
+// single secret this replaced.
 @Controller('admin/companies')
-@UseGuards(AdminBootstrapGuard)
+@UseGuards(SuperAdminGuard)
 @Throttle({ default: { limit: 30, ttl: 900_000 } })
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}

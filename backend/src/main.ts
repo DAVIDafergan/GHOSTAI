@@ -14,7 +14,7 @@ async function bootstrap() {
   // cookies), so reflecting the request origin carries no CSRF risk.
   app.enableCors({
     origin: true,
-    allowedHeaders: ['content-type', 'x-api-key', 'x-extension-key', 'x-admin-secret'],
+    allowedHeaders: ['content-type', 'x-api-key', 'x-extension-key', 'x-admin-username', 'x-admin-password'],
   });
   await app.listen(process.env.PORT ?? 3000);
 }

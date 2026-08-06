@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and fill in:
 |---|---|
 | `DATABASE_URL` | Postgres connection string |
 | `JWT_SECRET` | reserved, not currently used - see "Auth model" below for what's actually in place |
-| `ADMIN_BOOTSTRAP_SECRET` | shared secret gating `POST /admin/companies` (creating a new tenant) - known only to the Nistar operator, not customers |
+| `SUPER_ADMIN_USERNAME` / `SUPER_ADMIN_PASSWORD` | the operator's single account, gating `POST /admin/companies` (creating a new tenant) and its `GET`/`DELETE` by id - known only to the Nistar operator, not customers |
 | `PORT` | defaults to 3000 |
 
 ## Run
@@ -32,7 +32,8 @@ npm run test:e2e   # integration tests against a real Postgres (DATABASE_URL)
 
 ## Auth model
 
-- `x-admin-secret` (must equal `ADMIN_BOOTSTRAP_SECRET`): only for
+- `x-admin-username` + `x-admin-password` (must equal `SUPER_ADMIN_USERNAME`
+  / `SUPER_ADMIN_PASSWORD`, both required together): only for
   `POST /admin/companies` and its `GET`/`DELETE` by id.
 - `x-api-key` (a company's `apiKey`, shown once at creation): the Connector
   and the Admin Console both authenticate this way, acting "as the company."
@@ -54,7 +55,7 @@ Node-based test up to that point used `fetch` directly and never hit it.
 
 | Endpoint | Auth | Purpose |
 |---|---|---|
-| `POST /admin/companies` | admin-secret | create a tenant, returns `apiKey` once |
+| `POST /admin/companies` | admin username+password | create a tenant, returns `apiKey` once |
 | `POST /employees` | api-key | add an employee, returns `extensionKey` once |
 | `GET /employees` | api-key | list employees with computed status |
 | `DELETE /employees/:id` | api-key | disable an employee |

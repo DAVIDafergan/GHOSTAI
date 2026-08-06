@@ -3,14 +3,15 @@
  * against a real running backend, in a real headless Chromium - not a unit
  * test with mocked API calls. Prerequisites (not started by this script):
  *   - backend running (defaults to http://localhost:3000, override with
- *     BACKEND_URL) with a known ADMIN_BOOTSTRAP_SECRET
+ *     BACKEND_URL) with known SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD
  *   - `npm run dev` running in this package (defaults to port 5173,
  *     override with APP_URL)
- * Run with: ADMIN_BOOTSTRAP_SECRET=... npm run verify
+ * Run with: SUPER_ADMIN_USERNAME=... SUPER_ADMIN_PASSWORD=... npm run verify
  */
 import { chromium } from 'playwright';
 
-const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET;
+const ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD;
 const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
 
@@ -34,7 +35,8 @@ async function main() {
 
   // --- Step 1: company details ---
   await page.getByLabel('שם חברת הלקוח').fill('Manual Verify Co');
-  await page.getByLabel(/הסוד המנהלי שלכם/).fill(ADMIN_SECRET);
+  await page.getByLabel(/שם משתמש \(חשבון המפעיל\)/).fill(ADMIN_USERNAME);
+  await page.getByLabel(/סיסמה \(חשבון המפעיל\)/).fill(ADMIN_PASSWORD);
   // Backend URL now lives behind the collapsed "advanced settings" toggle,
   // only worth opening when overriding the default localhost:3000.
   if (BACKEND_URL !== 'http://localhost:3000') {

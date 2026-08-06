@@ -1503,3 +1503,107 @@ Took a fresh full-page screenshot of the built landing page to visually
 confirm the new name and contact address actually render, not just that
 the source diff looks right.
 
+## Super-admin auth: single shared secret -> username+password
+
+Requested follow-up from an earlier round (not something this session had
+any record of until asked about it directly - checked the actual code
+first rather than trusting memory, confirmed it genuinely hadn't been done
+yet, then implemented it). Replaced the single `ADMIN_BOOTSTRAP_SECRET`
+that gated `POST /admin/companies` (and its `GET`/`DELETE` by id) with a
+single operator account: `SUPER_ADMIN_USERNAME` + `SUPER_ADMIN_PASSWORD`,
+both required together. Scope decided with the user up front: one operator
+account (no multi-user table - env vars are enough for a single account,
+consistent with how the old single secret was already just an env var),
+and the backend itself changes auth (not just the super-admin UI relabeling
+a field and still sending the old secret underneath).
+
+**Backend**: `backend/src/common/guards/admin-bootstrap.guard.ts` replaced
+with `super-admin.guard.ts` (`AdminBootstrapGuard` -> `SuperAdminGuard`).
+Reads `x-admin-username`/`x-admin-password` headers, compares each against
+`SUPER_ADMIN_USERNAME`/`SUPER_ADMIN_PASSWORD` via the same `timingSafeEqual`
+helper the old guard used - critically, **both comparisons always run**,
+neither short-circuits the other, so a wrong username can't be distinguished
+from a wrong password by response timing (a guard that checked username
+first and bailed early on failure would leak, via timing, whether the
+username alone was already correct). `companies.controller.ts` updated to
+use the new guard; `CustomThrottlerGuard`'s IP-fallback behavior is
+unaffected (`x-admin-username`/`x-admin-password` are still not
+`x-api-key`/`x-extension-key`, so `POST /admin/companies` still correctly
+falls back to IP-based throttling - the actual brute-force protection for
+this endpoint, unchanged in effect, see item 1 from the hardening pass).
+
+**New dedicated test**: `backend/test/super-admin-auth.e2e-spec.ts` (6
+tests) - proves both credentials are actually required *together*, not
+just independently checked (right+right succeeds; right-username+wrong-
+password fails; wrong-username+right-password fails; either header alone
+fails; neither header fails). This guards against a subtly wrong
+implementation - e.g. one where a present-but-empty password header still
+passed - that a naive "wrong creds get 401" test using two wrong values at
+once wouldn't have caught.
+
+**Updated to use the new two-header auth** (all previously used a single
+`x-admin-secret` header and `process.env.ADMIN_BOOTSTRAP_SECRET`):
+`backend/test/pii-shield.e2e-spec.ts`, `cross-tenant.e2e-spec.ts`,
+`rate-limit.e2e-spec.ts` (its brute-force test now sends two wrong values);
+`extension/e2e/extension.spec.ts` and `connector/test/sync.integration.ts`
+(both bootstrap a real test company against a real backend the same way).
+Local `backend/.env` (gitignored) updated with dev `SUPER_ADMIN_USERNAME`/
+`SUPER_ADMIN_PASSWORD` values so all of the above keep working locally.
+
+**Super-admin app**: `SuperAdminSession` changed from `{ backendUrl,
+adminSecret }` to `{ backendUrl, username, password }`;
+`api/client.ts`'s `request()` sends both new headers.
+`Login.tsx` now has two fields (username, password, with proper
+`autoComplete` attributes) instead of one secret field, with an updated
+401 error message that doesn't imply which field was wrong (matches the
+guard's own "don't leak which credential failed" design).
+
+**Admin-console**: the onboarding wizard's step 1 (an operator creating a
+*new* customer company, gated by the same guard) needed the same update -
+otherwise it would have been permanently broken (always 401) the moment
+the backend redeploys with the new guard. `api/client.ts`'s `createCompany()`
+now takes `(backendUrl, adminUsername, adminPassword, name, adminEmail?)`;
+`Onboarding.tsx`'s `StepCompanyDetails` now collects both fields, with
+updated help text pointing at the right env var names.
+`manual-verify.mjs` (the real-Chromium Playwright script used to verify
+this exact page) updated to fill both new labeled fields instead of one.
+
+**Docs updated**: `backend/README.md`, `admin-console/README.md`,
+`super-admin/README.md`, top-level `README.md`, and `SECURITY.md` (added
+the timing-safety note above, since it's a genuine security property worth
+stating explicitly, not just implementing silently).
+
+**Tested**: `tsc --noEmit` clean across backend, admin-console, super-admin,
+extension, connector. Full backend suite: 5 unit + 37 e2e (7 suites,
+including the new 6-test super-admin-auth spec) - all green.
+
+**Real bug found and fixed, only via actual browser testing**: every
+automated test above (supertest, or plain `fetch` from a Node script) uses
+the new `x-admin-username`/`x-admin-password` headers successfully - none
+of them go through real browser CORS enforcement, which only applies to
+`fetch()` calls made *from a page in a browser*. Manually driving the real
+super-admin login and admin-console onboarding pages in actual Chromium
+(the same verification approach used throughout this whole session)
+surfaced it immediately: login failed with a generic network error, not a
+401, even with correct credentials. Root cause: `backend/src/main.ts`'s
+CORS config still listed `allowedHeaders: [..., 'x-admin-secret']` - the
+old header name. The browser's preflight (`OPTIONS`) request checks
+`Access-Control-Allow-Headers` before the browser will even send the real
+request with `x-admin-username`/`x-admin-password`; since neither was
+allowlisted, the browser blocked the request client-side before it ever
+reached the guard - `curl` doesn't perform this check, so a direct `curl`
+test with the exact same credentials and headers returned a correct `200`,
+which is what makes this bug invisible to anything that isn't a real
+browser. Fixed by updating `allowedHeaders` to the new header names.
+Re-verified in a real browser after the fix: correct credentials now log
+in successfully (confirmed the actual dashboard renders, not just "no
+error"), and a wrong password now correctly shows the credential-specific
+error message (not the generic network-failure one) - both the positive
+and negative case checked, not just "it doesn't crash anymore." Also
+verified the admin-console onboarding wizard's company-creation step
+(same guard, same headers) the same way. This is exactly the class of bug
+the "test every change, verify against real infrastructure" practice
+established throughout this whole session exists to catch - a passing
+test suite here would have shipped a super-admin app that could never
+actually log in.
+

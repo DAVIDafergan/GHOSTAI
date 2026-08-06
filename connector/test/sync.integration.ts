@@ -25,7 +25,8 @@ loadDotenv({ path: resolve(BACKEND_DIR, '.env') });
 
 const PORT = 3098;
 const BASE_URL = `http://localhost:${PORT}`;
-const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET as string;
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME as string;
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD as string;
 const EXPECTED_UNIQUE_HASHES = 49 * 4; // 48 unique rows + 1 deduped pair, x 4 mapped columns
 
 function log(msg: string) {
@@ -53,8 +54,8 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
 }
 
 async function main() {
-  if (!ADMIN_SECRET) {
-    throw new Error(`ADMIN_BOOTSTRAP_SECRET not found - is ${BACKEND_DIR}/.env present?`);
+  if (!SUPER_ADMIN_USERNAME || !SUPER_ADMIN_PASSWORD) {
+    throw new Error(`SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD not found - is ${BACKEND_DIR}/.env present?`);
   }
 
   log('spawning backend...');
@@ -78,7 +79,11 @@ async function main() {
 
     const companyRes = await fetch(`${BASE_URL}/admin/companies`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-username': SUPER_ADMIN_USERNAME,
+        'x-admin-password': SUPER_ADMIN_PASSWORD,
+      },
       body: JSON.stringify({ name: 'Connector Integration Test Co' }),
     });
     assert(companyRes.status === 201, `company creation should return 201, got ${companyRes.status}`);
@@ -179,7 +184,7 @@ async function main() {
     if (companyId) {
       await fetch(`${BASE_URL}/admin/companies/${companyId}`, {
         method: 'DELETE',
-        headers: { 'x-admin-secret': ADMIN_SECRET },
+        headers: { 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
       }).catch(() => undefined);
     }
     backendProcess.kill();

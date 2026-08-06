@@ -71,7 +71,8 @@ export function Onboarding() {
 
 function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: Partial<Draft>) => void }) {
   const [backendUrl, setBackendUrl] = useState(draft.backendUrl || 'http://localhost:3000');
-  const [adminSecret, setAdminSecret] = useState('');
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
   const [name, setName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -82,12 +83,12 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
     setError(null);
     setLoading(true);
     try {
-      const result = await api.createCompany(backendUrl, adminSecret, name, adminEmail || undefined);
+      const result = await api.createCompany(backendUrl, adminUsername, adminPassword, name, adminEmail || undefined);
       onNext({ step: 2, backendUrl, companyId: result.id, apiKey: result.apiKey });
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
-          ? 'הסוד שהזנת שגוי. ודא שהזנת את ה-ADMIN_BOOTSTRAP_SECRET הנכון (מוגדר אצלכם כמפעילי המערכת, ב-Railway).'
+          ? 'שם המשתמש או הסיסמה שגויים. ודא שהזנת את פרטי חשבון המפעיל הנכונים (SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD, מוגדרים אצלכם כמפעילי המערכת, ב-Railway).'
           : 'לא ניתן היה ליצור את החברה. ודא שכתובת השרת נכונה ושהשרת פעיל.',
       );
     } finally {
@@ -108,10 +109,26 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
       <Field
-        label="הסוד המנהלי שלכם (ADMIN_BOOTSTRAP_SECRET)"
-        help="לא קוד של הלקוח - זהו הסוד שאתם, כמפעילי המערכת, הגדרתם בשרת (משתנה הסביבה ADMIN_BOOTSTRAP_SECRET ב-Railway). הוא מזהה אתכם כמי שמורשה ליצור חברות לקוח חדשות, ואינו נמסר ללקוחות."
+        label="שם משתמש (חשבון המפעיל)"
+        help="לא קוד של הלקוח - זהו חשבון המפעיל שאתם, כמפעילי המערכת, הגדרתם בשרת (משתני הסביבה SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD ב-Railway). הוא מזהה אתכם כמי שמורשה ליצור חברות לקוח חדשות, ואינו נמסר ללקוחות."
       >
-        <input className="input" value={adminSecret} onChange={(e) => setAdminSecret(e.target.value)} required />
+        <input
+          className="input"
+          autoComplete="username"
+          value={adminUsername}
+          onChange={(e) => setAdminUsername(e.target.value)}
+          required
+        />
+      </Field>
+      <Field label="סיסמה (חשבון המפעיל)">
+        <input
+          type="password"
+          className="input"
+          autoComplete="current-password"
+          value={adminPassword}
+          onChange={(e) => setAdminPassword(e.target.value)}
+          required
+        />
       </Field>
       <Field
         label="מייל איש קשר אצל הלקוח (אופציונלי)"

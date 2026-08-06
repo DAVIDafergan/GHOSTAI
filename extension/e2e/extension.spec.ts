@@ -12,7 +12,8 @@ const BACKEND_PORT = 3097;
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 const MOCK_PORT = 4500;
 const MOCK_URL = `http://localhost:${MOCK_PORT}`;
-const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET as string;
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME as string;
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD as string;
 
 function normalizeValue(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -76,7 +77,7 @@ test('a known company name and id number are tokenized before leaving the browse
   // --- seed the backend with one known "customer" (as the connector would) ---
   const companyRes = await fetch(`${BACKEND_URL}/admin/companies`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+    headers: { 'content-type': 'application/json', 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
     body: JSON.stringify({ name: 'Extension E2E Test Co' }),
   });
   expect(companyRes.status).toBe(201);
@@ -168,7 +169,7 @@ test('a known company name and id number are tokenized before leaving the browse
 
   await fetch(`${BACKEND_URL}/admin/companies/${company.id}`, {
     method: 'DELETE',
-    headers: { 'x-admin-secret': ADMIN_SECRET },
+    headers: { 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
   });
 });
 
@@ -183,7 +184,7 @@ test('same as above, but against a ProseMirror-style contentEditable composer (r
   // mock page reproduces both of those conditions deliberately.
   const companyRes = await fetch(`${BACKEND_URL}/admin/companies`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+    headers: { 'content-type': 'application/json', 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
     body: JSON.stringify({ name: 'Extension E2E Test Co (contentEditable)' }),
   });
   const company = (await companyRes.json()) as { id: string; apiKey: string };
@@ -256,6 +257,6 @@ test('same as above, but against a ProseMirror-style contentEditable composer (r
 
   await fetch(`${BACKEND_URL}/admin/companies/${company.id}`, {
     method: 'DELETE',
-    headers: { 'x-admin-secret': ADMIN_SECRET },
+    headers: { 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
   });
 });

@@ -8,9 +8,10 @@ way for the two trust boundaries to blur together.
 
 ## Auth model
 
-Authenticates as the Nistar operator via `ADMIN_BOOTSTRAP_SECRET` -
-the same secret that gates `POST /admin/companies` on the backend, not any
-individual company's `apiKey`. Stored in its own `localStorage` key
+Authenticates as the Nistar operator via a single account
+(`SUPER_ADMIN_USERNAME` / `SUPER_ADMIN_PASSWORD`) - the same credentials
+that gate `POST /admin/companies` on the backend, not any individual
+company's `apiKey`. Stored in its own `localStorage` key
 (`piiShieldSuperAdminSession`), separate from `admin-console`'s, so the two
 apps can't cross-contaminate a session even if both happen to be open in
 the same browser.
@@ -23,7 +24,8 @@ npm run dev
 ```
 
 Requires a running backend (see `backend/.env.example` for
-`ADMIN_BOOTSTRAP_SECRET`) reachable at whatever URL you enter at sign-in.
+`SUPER_ADMIN_USERNAME`/`SUPER_ADMIN_PASSWORD`) reachable at whatever URL
+you enter at sign-in.
 
 ## Build
 

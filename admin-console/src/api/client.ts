@@ -140,13 +140,13 @@ export interface HealthCheckResult {
 }
 
 export const api = {
-  createCompany: (backendUrl: string, adminSecret: string, name: string, adminEmail?: string) =>
+  createCompany: (backendUrl: string, adminUsername: string, adminPassword: string, name: string, adminEmail?: string) =>
     request<{ id: string; name: string; apiKey: string; createdAt: string }>(
       { backendUrl, apiKey: '' },
       '/admin/companies',
       {
         method: 'POST',
-        headers: { 'x-admin-secret': adminSecret },
+        headers: { 'x-admin-username': adminUsername, 'x-admin-password': adminPassword },
         body: JSON.stringify({ name, adminEmail }),
       },
     ),

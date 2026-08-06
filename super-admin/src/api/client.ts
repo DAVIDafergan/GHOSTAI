@@ -1,12 +1,14 @@
 // Entirely separate auth from the per-company admin-console: this app
-// authenticates as the Nistar operator via ADMIN_BOOTSTRAP_SECRET, not
-// any company's apiKey. Own localStorage key so there's no chance of
+// authenticates as the Nistar operator via a single operator account
+// (SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD on the backend), not any
+// company's apiKey. Own localStorage key so there's no chance of
 // cross-contamination even if both apps are somehow open in the same
 // browser (different origins in production anyway - separate Railway
 // services/domains).
 export interface SuperAdminSession {
   backendUrl: string;
-  adminSecret: string;
+  username: string;
+  password: string;
 }
 
 const STORAGE_KEY = 'piiShieldSuperAdminSession';
@@ -64,7 +66,8 @@ async function request<T>(session: SuperAdminSession, path: string, init: Reques
     ...init,
     headers: {
       'content-type': 'application/json',
-      'x-admin-secret': session.adminSecret,
+      'x-admin-username': session.username,
+      'x-admin-password': session.password,
       ...(init.headers ?? {}),
     },
   });
@@ -90,7 +93,7 @@ export interface CompanySummary {
 }
 
 export const api = {
-  /** Verifies backendUrl+adminSecret are actually valid before treating
+  /** Verifies backendUrl+username+password are actually valid before treating
    * login as successful, rather than just saving whatever was typed. */
   verifyAndListCompanies: (session: SuperAdminSession) => request<CompanySummary[]>(session, '/admin/companies'),
 

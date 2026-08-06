@@ -6,7 +6,8 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET as string;
+const SUPER_ADMIN_USERNAME = process.env.SUPER_ADMIN_USERNAME as string;
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD as string;
 
 jest.setTimeout(30000);
 
@@ -42,7 +43,8 @@ describe('PII Shield backend (e2e)', () => {
     // 1. Create a company (admin-only)
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Acme Law Offices', adminEmail: 'admin@acme-law.test' })
       .expect(201);
 
@@ -89,7 +91,8 @@ describe('PII Shield backend (e2e)', () => {
     // 5. A different company's employee must not see these entities (tenant isolation)
     const otherCompanyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Other Co' })
       .expect(201);
     const otherEmployeeRes = await request(app.getHttpServer())
@@ -114,7 +117,8 @@ describe('PII Shield backend (e2e)', () => {
   it('exposes the company entitySalt to the company via api-key and to employees via extensionKey', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Salt Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -144,7 +148,8 @@ describe('PII Shield backend (e2e)', () => {
   it('rejects a disabled employee extension key', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Disable Test Co' })
       .expect(201);
 
@@ -171,7 +176,8 @@ describe('PII Shield backend (e2e)', () => {
   it('prunes stale entities from a connector when a sync run completes', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Sync Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -227,7 +233,8 @@ describe('PII Shield backend (e2e)', () => {
   it('records audit log events from the extension and surfaces them via the dashboard summary and settings', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Dashboard Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -289,7 +296,8 @@ describe('PII Shield backend (e2e)', () => {
   it('reports a computed employee status (not_installed / active / disabled)', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Employee Status Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -338,7 +346,8 @@ describe('PII Shield backend (e2e)', () => {
   it('returns a single employee with name and total block count via GET /employees/:id', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Employee Detail Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -397,7 +406,8 @@ describe('PII Shield backend (e2e)', () => {
   it('flags an employee with far more blocks than peers, repeated overrides, and unusual-hour activity', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Anomaly Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -468,7 +478,8 @@ describe('PII Shield backend (e2e)', () => {
   it('runs a synthetic health check that succeeds and is retrievable via latest', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Health Check Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -495,7 +506,8 @@ describe('PII Shield backend (e2e)', () => {
   it('lists all companies with aggregated stats for the super-admin dashboard, gated by the admin secret', async () => {
     const companyRes = await request(app.getHttpServer())
       .post('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .send({ name: 'Super Admin List Test Co' })
       .expect(201);
     const apiKey = companyRes.body.apiKey as string;
@@ -541,7 +553,8 @@ describe('PII Shield backend (e2e)', () => {
 
     const listRes = await request(app.getHttpServer())
       .get('/admin/companies')
-      .set('x-admin-secret', ADMIN_SECRET)
+      .set('x-admin-username', SUPER_ADMIN_USERNAME)
+      .set('x-admin-password', SUPER_ADMIN_PASSWORD)
       .expect(200);
     const entry = listRes.body.find((c: { id: string }) => c.id === companyId);
     expect(entry).toBeDefined();

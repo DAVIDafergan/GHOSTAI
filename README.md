@@ -63,7 +63,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 # 2. Backend
 cd backend
-cp .env.example .env   # fill in ADMIN_BOOTSTRAP_SECRET etc.
+cp .env.example .env   # fill in SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD etc.
 npm install
 npx prisma migrate dev
 npm run start:dev
@@ -78,7 +78,7 @@ npm run dev
 cd super-admin
 npm install
 npm run dev
-# open http://localhost:5174, sign in with ADMIN_BOOTSTRAP_SECRET
+# open http://localhost:5174, sign in with SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD
 
 # 5. Connector (separate terminal, needs a data source to point at)
 cd connector

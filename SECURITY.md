@@ -49,8 +49,13 @@ goal, not full end-to-end secrecy from every possible attacker.
   is appropriate here specifically *because* these are random secrets, not
   low-entropy passwords - unlike a password hash, there's no need for a slow
   KDF, and a fast hash allows indexed lookup by hash).
-- `ADMIN_BOOTSTRAP_SECRET` gates creating new tenant companies; it's known
-  only to the Nistar operator, not individual customers.
+- `SUPER_ADMIN_USERNAME`/`SUPER_ADMIN_PASSWORD` (the operator's single
+  account) gates creating new tenant companies; known only to the Nistar
+  operator, not individual customers. Both are required together and
+  compared with a timing-safe comparison (see
+  `backend/src/common/guards/super-admin.guard.ts`) - a wrong username
+  alone or a wrong password alone both fail the same way, so neither can
+  be brute-forced independently of the other.
 
 ## Known limitations (honest, not hidden)
 
