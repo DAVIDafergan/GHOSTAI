@@ -63,10 +63,12 @@ export interface Company {
 
 export interface EmployeeSummary {
   id: string;
+  name: string | null;
   email: string;
   status: 'not_installed' | 'active' | 'inactive' | 'disabled';
   createdAt: string;
   lastActiveAt: string | null;
+  blockCount: number;
 }
 
 export interface ConnectorSummary {
@@ -79,8 +81,10 @@ export interface ConnectorSummary {
 export interface AuditLogEntry {
   id: string;
   employeeEmail: string;
+  employeeName: string | null;
   eventType: string;
   entityType: string | null;
+  platform: string | null;
   createdAt: string;
 }
 
@@ -91,6 +95,28 @@ export interface DashboardSummary {
   entitiesCount: number;
   connectors: ConnectorSummary[];
   blocksByDay: { date: string; count: number }[];
+}
+
+export interface AnomalyReason {
+  type: 'high_blocks' | 'repeated_override' | 'unusual_hours';
+  detail: string;
+}
+
+export interface Anomaly {
+  employeeId: string;
+  name: string | null;
+  email: string;
+  blocksThisWeek: number;
+  medianOfOthers: number;
+  reasons: AnomalyReason[];
+}
+
+export interface HealthCheckResult {
+  id: string;
+  companyId: string;
+  ranAt: string;
+  success: boolean;
+  detail: string | null;
 }
 
 export const api = {
@@ -112,11 +138,14 @@ export const api = {
 
   listEmployees: (session: Session) => request<EmployeeSummary[]>(session, '/employees'),
 
-  createEmployee: (session: Session, email: string) =>
-    request<{ id: string; email: string; extensionKey: string; createdAt: string }>(session, '/employees', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }),
+  getEmployee: (session: Session, id: string) => request<EmployeeSummary>(session, `/employees/${id}`),
+
+  createEmployee: (session: Session, email: string, name?: string) =>
+    request<{ id: string; name: string | null; email: string; extensionKey: string; createdAt: string }>(
+      session,
+      '/employees',
+      { method: 'POST', body: JSON.stringify({ email, name }) },
+    ),
 
   disableEmployee: (session: Session, id: string) =>
     request<void>(session, `/employees/${id}`, { method: 'DELETE' }),
@@ -138,4 +167,13 @@ export const api = {
       `/audit-logs${qs ? `?${qs}` : ''}`,
     );
   },
+
+  getAnomalies: (session: Session) =>
+    request<{ anomalies: Anomaly[]; windowDays: number }>(session, '/dashboard/anomalies'),
+
+  getLatestHealthCheck: (session: Session) =>
+    request<HealthCheckResult | null>(session, '/health-check/latest'),
+
+  runHealthCheck: (session: Session) =>
+    request<HealthCheckResult>(session, '/health-check/run', { method: 'POST' }),
 };

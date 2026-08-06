@@ -1,16 +1,18 @@
 /**
- * Drives the real admin console (via `npm run dev`, port 5173) against a
- * real running backend, in a real headless Chromium - not a unit test with
- * mocked API calls. Prerequisites (not started by this script):
- *   - backend running on http://localhost:3000 with a known
- *     ADMIN_BOOTSTRAP_SECRET (passed as an env var to this script)
- *   - `npm run dev` running in this package on port 5173
+ * Drives the real admin console (via `npm run dev`, port 5173 by default)
+ * against a real running backend, in a real headless Chromium - not a unit
+ * test with mocked API calls. Prerequisites (not started by this script):
+ *   - backend running (defaults to http://localhost:3000, override with
+ *     BACKEND_URL) with a known ADMIN_BOOTSTRAP_SECRET
+ *   - `npm run dev` running in this package (defaults to port 5173,
+ *     override with APP_URL)
  * Run with: ADMIN_BOOTSTRAP_SECRET=... npm run verify
  */
 import { chromium } from 'playwright';
 
 const ADMIN_SECRET = process.env.ADMIN_BOOTSTRAP_SECRET;
-const APP_URL = 'http://localhost:5173';
+const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
 
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
@@ -31,9 +33,14 @@ async function main() {
   await page.goto(APP_URL);
 
   // --- Step 1: company details ---
-  await page.getByLabel('כתובת שרת ה-backend').fill('http://localhost:3000');
-  await page.getByLabel('קוד הפעלה מספק השירות').fill(ADMIN_SECRET);
-  await page.getByLabel('שם החברה').fill('Manual Verify Co');
+  await page.getByLabel('שם חברת הלקוח').fill('Manual Verify Co');
+  await page.getByLabel(/הסוד המנהלי שלכם/).fill(ADMIN_SECRET);
+  // Backend URL now lives behind the collapsed "advanced settings" toggle,
+  // only worth opening when overriding the default localhost:3000.
+  if (BACKEND_URL !== 'http://localhost:3000') {
+    await page.getByText('הגדרות מתקדמות').click();
+    await page.getByLabel('כתובת שרת ה-backend').fill(BACKEND_URL);
+  }
   await page.getByRole('button', { name: 'המשך' }).click();
   await page.waitForSelector('text=סוג מקור הנתונים');
   log('step 1 (company details) OK');

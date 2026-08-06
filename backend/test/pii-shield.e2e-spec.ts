@@ -334,4 +334,161 @@ describe('PII Shield backend (e2e)', () => {
     await prisma.employee.deleteMany({ where: { companyId } });
     await prisma.company.delete({ where: { id: companyId } });
   });
+
+  it('returns a single employee with name and total block count via GET /employees/:id', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/admin/companies')
+      .set('x-admin-secret', ADMIN_SECRET)
+      .send({ name: 'Employee Detail Test Co' })
+      .expect(201);
+    const apiKey = companyRes.body.apiKey as string;
+    const companyId = companyRes.body.id as string;
+
+    const employeeRes = await request(app.getHttpServer())
+      .post('/employees')
+      .set('x-api-key', apiKey)
+      .send({ email: 'detail@detail-test.test', name: 'Detail Employee' })
+      .expect(201);
+    expect(employeeRes.body.name).toBe('Detail Employee');
+    const employeeId = employeeRes.body.id as string;
+    const extensionKey = employeeRes.body.extensionKey as string;
+
+    await request(app.getHttpServer())
+      .post('/audit-logs')
+      .set('x-extension-key', extensionKey)
+      .send({ eventType: 'blocked', entityType: 'name', platform: 'chatgpt.com' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/audit-logs')
+      .set('x-extension-key', extensionKey)
+      .send({ eventType: 'blocked', entityType: 'id_number', platform: 'claude.ai' })
+      .expect(201);
+
+    const detailRes = await request(app.getHttpServer())
+      .get(`/employees/${employeeId}`)
+      .set('x-api-key', apiKey)
+      .expect(200);
+    expect(detailRes.body.name).toBe('Detail Employee');
+    expect(detailRes.body.email).toBe('detail@detail-test.test');
+    expect(detailRes.body.blockCount).toBe(2);
+
+    const listRes = await request(app.getHttpServer())
+      .get('/employees')
+      .set('x-api-key', apiKey)
+      .expect(200);
+    expect(listRes.body[0].blockCount).toBe(2);
+
+    const historyRes = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .set('x-api-key', apiKey)
+      .query({ employeeId })
+      .expect(200);
+    expect(historyRes.body.logs).toHaveLength(2);
+    expect(historyRes.body.logs.map((l: { platform: string }) => l.platform).sort()).toEqual([
+      'chatgpt.com',
+      'claude.ai',
+    ]);
+
+    await prisma.auditLog.deleteMany({ where: { companyId } });
+    await prisma.employee.deleteMany({ where: { companyId } });
+    await prisma.company.delete({ where: { id: companyId } });
+  });
+
+  it('flags an employee with far more blocks than peers, repeated overrides, and unusual-hour activity', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/admin/companies')
+      .set('x-admin-secret', ADMIN_SECRET)
+      .send({ name: 'Anomaly Test Co' })
+      .expect(201);
+    const apiKey = companyRes.body.apiKey as string;
+    const companyId = companyRes.body.id as string;
+
+    const [aRes, bRes, cRes] = await Promise.all(
+      ['a', 'b', 'c'].map((label) =>
+        request(app.getHttpServer())
+          .post('/employees')
+          .set('x-api-key', apiKey)
+          .send({ email: `${label}@anomaly-test.test` })
+          .expect(201),
+      ),
+    );
+
+    // A: 6 ordinary blocks (recent) -> should trip the "far more than peers"
+    // threshold. B: 1 block. C: 0 blocks. Median of B/C = 0.5, so 6 > 3*0.5
+    // and 6 >= the absolute floor of 5.
+    for (let i = 0; i < 6; i++) {
+      await prisma.auditLog.create({
+        data: { companyId, employeeId: aRes.body.id, eventType: 'blocked', entityType: 'name' },
+      });
+    }
+    await prisma.auditLog.create({
+      data: { companyId, employeeId: bRes.body.id, eventType: 'blocked', entityType: 'name' },
+    });
+
+    // A: 3 override attempts -> trips the "repeated override" threshold.
+    for (let i = 0; i < 3; i++) {
+      await prisma.auditLog.create({
+        data: { companyId, employeeId: aRes.body.id, eventType: 'user_override', entityType: 'name' },
+      });
+    }
+
+    // A: 3 blocks at 3am UTC -> trips the "unusual hours" threshold. These
+    // count toward blocksThisWeek too, but that's fine, doesn't change the
+    // high_blocks verdict.
+    const threeAmUtc = new Date();
+    threeAmUtc.setUTCHours(3, 0, 0, 0);
+    for (let i = 0; i < 3; i++) {
+      await prisma.auditLog.create({
+        data: { companyId, employeeId: aRes.body.id, eventType: 'blocked', entityType: 'name', createdAt: threeAmUtc },
+      });
+    }
+
+    const anomaliesRes = await request(app.getHttpServer())
+      .get('/dashboard/anomalies')
+      .set('x-api-key', apiKey)
+      .expect(200);
+
+    const byEmployee = Object.fromEntries(
+      anomaliesRes.body.anomalies.map((a: { employeeId: string; reasons: { type: string }[] }) => [
+        a.employeeId,
+        a.reasons.map((r) => r.type),
+      ]),
+    );
+    expect(byEmployee[aRes.body.id]).toEqual(
+      expect.arrayContaining(['high_blocks', 'repeated_override', 'unusual_hours']),
+    );
+    expect(byEmployee[bRes.body.id]).toBeUndefined();
+    expect(byEmployee[cRes.body.id]).toBeUndefined();
+
+    await prisma.auditLog.deleteMany({ where: { companyId } });
+    await prisma.employee.deleteMany({ where: { companyId } });
+    await prisma.company.delete({ where: { id: companyId } });
+  });
+
+  it('runs a synthetic health check that succeeds and is retrievable via latest', async () => {
+    const companyRes = await request(app.getHttpServer())
+      .post('/admin/companies')
+      .set('x-admin-secret', ADMIN_SECRET)
+      .send({ name: 'Health Check Test Co' })
+      .expect(201);
+    const apiKey = companyRes.body.apiKey as string;
+    const companyId = companyRes.body.id as string;
+
+    const runRes = await request(app.getHttpServer())
+      .post('/health-check/run')
+      .set('x-api-key', apiKey)
+      .expect(201);
+    expect(runRes.body.success).toBe(true);
+
+    const latestRes = await request(app.getHttpServer())
+      .get('/health-check/latest')
+      .set('x-api-key', apiKey)
+      .expect(200);
+    expect(latestRes.body.success).toBe(true);
+    expect(latestRes.body.id).toBe(runRes.body.id);
+
+    await prisma.healthCheck.deleteMany({ where: { companyId } });
+    await prisma.sensitiveEntity.deleteMany({ where: { companyId } });
+    await prisma.company.delete({ where: { id: companyId } });
+  });
 });

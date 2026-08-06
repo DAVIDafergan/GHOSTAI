@@ -13,4 +13,9 @@ export class DashboardController {
   summary(@CurrentCompany() company: Company) {
     return this.dashboardService.getSummary(company);
   }
+
+  @Get('anomalies')
+  anomalies(@CurrentCompany() company: Company) {
+    return this.dashboardService.getAnomalies(company);
+  }
 }

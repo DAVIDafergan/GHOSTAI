@@ -17,7 +17,7 @@ export class AuditLogsController {
   @Post()
   @UseGuards(ExtensionKeyGuard)
   create(@CurrentEmployee() employee: Employee, @Body() dto: CreateAuditLogDto) {
-    return this.auditLogsService.create(employee, dto.eventType, dto.entityType);
+    return this.auditLogsService.create(employee, dto.eventType, dto.entityType, dto.platform);
   }
 
   @Get()

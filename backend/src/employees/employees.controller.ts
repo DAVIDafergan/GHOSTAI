@@ -12,9 +12,10 @@ export class EmployeesController {
 
   @Post()
   async create(@CurrentCompany() company: Company, @Body() dto: CreateEmployeeDto) {
-    const { employee, extensionKey } = await this.employeesService.create(company, dto.email);
+    const { employee, extensionKey } = await this.employeesService.create(company, dto.email, dto.name);
     return {
       id: employee.id,
+      name: employee.name,
       email: employee.email,
       extensionKey,
       createdAt: employee.createdAt,
@@ -24,6 +25,11 @@ export class EmployeesController {
   @Get()
   list(@CurrentCompany() company: Company) {
     return this.employeesService.list(company.id);
+  }
+
+  @Get(':id')
+  getOne(@CurrentCompany() company: Company, @Param('id') id: string) {
+    return this.employeesService.getOne(company, id);
   }
 
   @Delete(':id')

@@ -23,6 +23,7 @@ model Company {
   employees     Employee[]
   entities      SensitiveEntity[]
   auditLogs     AuditLog[]
+  healthChecks  HealthCheck[]
 }
 
 model Connector {
@@ -44,6 +45,7 @@ model Employee {
   id            String    @id @default(cuid())
   companyId     String
   company       Company   @relation(fields: [companyId], references: [id])
+  name          String?
   email         String
   extensionKeyHash String @unique
   activatedAt   DateTime?
@@ -82,7 +84,28 @@ model AuditLog {
   employee      Employee  @relation(fields: [employeeId], references: [id])
   eventType     String    // "blocked" | "allowed" | "user_override"
   entityType    String?
+  platform      String?   // hostname of the AI site the event happened on, e.g. "chatgpt.com"
   createdAt     DateTime  @default(now())
 
   @@index([companyId, createdAt])
+  @@index([companyId, employeeId, createdAt])
+}
+
+/**
+ * Hourly synthetic check ("canary"): recomputes the hash of a fixed,
+ * non-secret marker string and confirms it's still found in this
+ * company's SensitiveEntity list. Proves the hash+match pipeline and DB
+ * are alive end-to-end. Does NOT prove the browser extension itself is
+ * loaded in a real tab - it deliberately never touches a real AI provider
+ * site (see BUILD_LOG for why).
+ */
+model HealthCheck {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  ranAt         DateTime  @default(now())
+  success       Boolean
+  detail        String?
+
+  @@index([companyId, ranAt])
 }

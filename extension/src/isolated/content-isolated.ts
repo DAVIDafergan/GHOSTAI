@@ -48,7 +48,7 @@ function reportBlockedEntities(entityTypes: string[]): void {
     fetch(`${storeState.backendUrl}/audit-logs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-extension-key': storeState.extensionKey },
-      body: JSON.stringify({ eventType: 'blocked', entityType }),
+      body: JSON.stringify({ eventType: 'blocked', entityType, platform: location.hostname }),
     }).catch(() => undefined);
   }
 }

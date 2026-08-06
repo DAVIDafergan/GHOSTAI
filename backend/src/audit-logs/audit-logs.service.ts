@@ -6,13 +6,14 @@ import { PrismaService } from '../prisma/prisma.service';
 export class AuditLogsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(employee: Employee, eventType: string, entityType?: string) {
+  create(employee: Employee, eventType: string, entityType?: string, platform?: string) {
     return this.prisma.auditLog.create({
       data: {
         companyId: employee.companyId,
         employeeId: employee.id,
         eventType,
         entityType,
+        platform,
       },
     });
   }
@@ -27,7 +28,7 @@ export class AuditLogsService {
         ...(options.employeeId ? { employeeId: options.employeeId } : {}),
         ...(options.entityType ? { entityType: options.entityType } : {}),
       },
-      include: { employee: { select: { email: true } } },
+      include: { employee: { select: { email: true, name: true } } },
       orderBy: { id: 'desc' },
       take: options.limit + 1,
       ...(options.cursor ? { cursor: { id: options.cursor }, skip: 1 } : {}),
@@ -38,8 +39,10 @@ export class AuditLogsService {
       logs: page.map((log) => ({
         id: log.id,
         employeeEmail: log.employee.email,
+        employeeName: log.employee.name,
         eventType: log.eventType,
         entityType: log.entityType,
+        platform: log.platform,
         createdAt: log.createdAt,
       })),
       nextCursor: hasMore ? page[page.length - 1].id : null,

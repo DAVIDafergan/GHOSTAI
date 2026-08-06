@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { api, AuditLogEntry, DashboardSummary } from '../api/client';
 import { useSession } from '../context/SessionContext';
-import { SimpleBarChart } from '../components/SimpleBarChart';
+import { AnomalyWidget } from '../components/AnomalyWidget';
 
 export function Dashboard() {
   const { session } = useSession();
@@ -42,6 +43,8 @@ export function Dashboard() {
     <div className="space-y-6">
       <h1 className="text-xl font-bold">לוח בקרה</h1>
 
+      <AnomalyWidget />
+
       <div className="grid grid-cols-3 gap-4">
         <div className="card">
           <p className="text-sm text-gray-500">חסימות החודש</p>
@@ -73,7 +76,19 @@ export function Dashboard() {
 
       <div className="card">
         <h2 className="mb-4 text-sm font-semibold text-gray-700">חסימות ב-30 הימים האחרונים</h2>
-        <SimpleBarChart data={summary.blocksByDay} />
+        {summary.blocksByDay.length === 0 ? (
+          <p className="text-sm text-gray-400">אין עדיין נתונים להצגה</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={summary.blocksByDay}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="date" fontSize={12} />
+              <YAxis allowDecimals={false} fontSize={12} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="card">
@@ -87,6 +102,7 @@ export function Dashboard() {
                 <th className="pb-2">זמן</th>
                 <th className="pb-2">עובד</th>
                 <th className="pb-2">סוג</th>
+                <th className="pb-2">פלטפורמה</th>
                 <th className="pb-2">פעולה</th>
               </tr>
             </thead>
@@ -94,8 +110,9 @@ export function Dashboard() {
               {logs.map((log) => (
                 <tr key={log.id} className="border-b last:border-0">
                   <td className="py-2">{new Date(log.createdAt).toLocaleString('he-IL')}</td>
-                  <td className="py-2">{log.employeeEmail}</td>
+                  <td className="py-2">{log.employeeName || log.employeeEmail}</td>
                   <td className="py-2">{log.entityType ?? '-'}</td>
+                  <td className="py-2 text-gray-500">{log.platform ?? '-'}</td>
                   <td className="py-2">{log.eventType}</td>
                 </tr>
               ))}

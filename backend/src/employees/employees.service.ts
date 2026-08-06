@@ -19,7 +19,7 @@ function computeEmployeeStatus(employee: Employee): string {
 export class EmployeesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(company: Company, email: string) {
+  async create(company: Company, email: string, name?: string) {
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.prisma.employee.findUnique({
       where: { companyId_email: { companyId: company.id, email: normalizedEmail } },
@@ -32,6 +32,7 @@ export class EmployeesService {
       data: {
         companyId: company.id,
         email: normalizedEmail,
+        name: name?.trim() || undefined,
         extensionKeyHash: hashSecret(extensionKey),
       },
     });
@@ -40,14 +41,40 @@ export class EmployeesService {
   }
 
   async list(companyId: string) {
-    const employees = await this.prisma.employee.findMany({ where: { companyId }, orderBy: { createdAt: 'asc' } });
+    const [employees, blockCounts] = await Promise.all([
+      this.prisma.employee.findMany({ where: { companyId }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.auditLog.groupBy({
+        by: ['employeeId'],
+        where: { companyId, eventType: 'blocked' },
+        _count: { _all: true },
+      }),
+    ]);
+    const blockCountByEmployee = new Map(blockCounts.map((b) => [b.employeeId, b._count._all]));
     return employees.map((e) => ({
       id: e.id,
+      name: e.name,
       email: e.email,
       status: computeEmployeeStatus(e),
       createdAt: e.createdAt,
       lastActiveAt: e.lastActiveAt,
+      blockCount: blockCountByEmployee.get(e.id) ?? 0,
     }));
+  }
+
+  async getOne(company: Company, employeeId: string) {
+    const employee = await this.getOwned(company, employeeId);
+    const blockCount = await this.prisma.auditLog.count({
+      where: { companyId: company.id, employeeId, eventType: 'blocked' },
+    });
+    return {
+      id: employee.id,
+      name: employee.name,
+      email: employee.email,
+      status: computeEmployeeStatus(employee),
+      createdAt: employee.createdAt,
+      lastActiveAt: employee.lastActiveAt,
+      blockCount,
+    };
   }
 
   private async getOwned(company: Company, employeeId: string) {

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useSession } from '../context/SessionContext';
+import { HealthIndicator } from './HealthIndicator';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `block rounded-lg px-3 py-2 text-sm font-medium ${
@@ -13,7 +14,8 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-50" dir="rtl">
       <aside className="w-56 shrink-0 border-l border-gray-200 bg-white p-4">
-        <h1 className="mb-6 text-lg font-bold text-indigo-700">PII Shield</h1>
+        <h1 className="mb-4 text-lg font-bold text-indigo-700">PII Shield</h1>
+        <HealthIndicator />
         <nav className="space-y-1">
           <NavLink to="/" end className={navLinkClass}>
             לוח בקרה

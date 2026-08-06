@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError, EmployeeSummary } from '../api/client';
 import { useSession } from '../context/SessionContext';
+import { COLORS } from '../colors';
 
 const STATUS_LABEL: Record<EmployeeSummary['status'], string> = {
   active: 'פעיל',
@@ -10,20 +12,22 @@ const STATUS_LABEL: Record<EmployeeSummary['status'], string> = {
 };
 
 const STATUS_COLOR: Record<EmployeeSummary['status'], string> = {
-  active: 'bg-green-100 text-green-800',
-  not_installed: 'bg-gray-100 text-gray-600',
-  inactive: 'bg-amber-100 text-amber-800',
-  disabled: 'bg-red-100 text-red-700',
+  active: COLORS.ok,
+  not_installed: COLORS.neutral,
+  inactive: COLORS.warning,
+  disabled: COLORS.critical,
 };
 
 export function Employees() {
   const { session } = useSession();
+  const navigate = useNavigate();
   const [employees, setEmployees] = useState<EmployeeSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newExtensionKey, setNewExtensionKey] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
-  const [csvRows, setCsvRows] = useState<{ email: string; error?: string }[] | null>(null);
+  const [csvRows, setCsvRows] = useState<{ email: string; name?: string; error?: string }[] | null>(null);
   const [importing, setImporting] = useState(false);
 
   const refresh = async () => {
@@ -41,8 +45,9 @@ export function Employees() {
     if (!session) return;
     setAddError(null);
     try {
-      const result = await api.createEmployee(session, newEmail);
+      const result = await api.createEmployee(session, newEmail, newName || undefined);
       setNewExtensionKey(result.extensionKey);
+      setNewName('');
       setNewEmail('');
       await refresh();
     } catch (err) {
@@ -70,8 +75,10 @@ export function Employees() {
         .filter(Boolean);
       const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       const rows = lines.map((line) => {
-        const email = line.split(',')[0].trim();
-        return emailRe.test(email) ? { email } : { email, error: 'כתובת מייל לא תקינה' };
+        const [emailPart, namePart] = line.split(',').map((s) => s.trim());
+        return emailRe.test(emailPart)
+          ? { email: emailPart, name: namePart || undefined }
+          : { email: emailPart, error: 'כתובת מייל לא תקינה' };
       });
       setCsvRows(rows);
     };
@@ -85,7 +92,7 @@ export function Employees() {
     for (let i = 0; i < updated.length; i++) {
       if (updated[i].error) continue;
       try {
-        await api.createEmployee(session, updated[i].email);
+        await api.createEmployee(session, updated[i].email, updated[i].name);
       } catch (err) {
         updated[i] = {
           ...updated[i],
@@ -108,6 +115,13 @@ export function Employees() {
         <h2 className="mb-3 text-sm font-semibold text-gray-700">הוספת עובד בודד</h2>
         <form onSubmit={handleAdd} className="flex items-end gap-2">
           <input
+            type="text"
+            className="input"
+            placeholder="שם (אופציונלי)"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <input
             type="email"
             className="input"
             placeholder="employee@company.com"
@@ -129,7 +143,9 @@ export function Employees() {
       </div>
 
       <div className="card">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">ייבוא המוני (CSV, עמודת מייל בלבד)</h2>
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">
+          ייבוא המוני (CSV, עמודות: מייל, שם - אופציונלי)
+        </h2>
         <input
           type="file"
           accept=".csv,text/csv"
@@ -142,7 +158,7 @@ export function Employees() {
                 {csvRows.map((row, i) => (
                   <tr key={i} className={row.error ? 'text-red-600' : ''}>
                     <td className="py-1">
-                      שורה {i + 1}: {row.email}
+                      שורה {i + 1}: {row.email} {row.name ? `(${row.name})` : ''}
                     </td>
                     <td className="py-1">{row.error ?? '✓'}</td>
                   </tr>
@@ -156,19 +172,27 @@ export function Employees() {
         )}
       </div>
 
-      <div className="card">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b text-right text-gray-500">
+              <th className="pb-2">שם</th>
               <th className="pb-2">מייל</th>
               <th className="pb-2">סטטוס</th>
               <th className="pb-2">הצטרף</th>
+              <th className="pb-2">חסימות סה"כ</th>
+              <th className="pb-2">פעילות אחרונה</th>
               <th className="pb-2" />
             </tr>
           </thead>
           <tbody>
             {employees.map((emp) => (
-              <tr key={emp.id} className="border-b last:border-0">
+              <tr
+                key={emp.id}
+                className="cursor-pointer border-b last:border-0 hover:bg-gray-50"
+                onClick={() => navigate(`/employees/${emp.id}`)}
+              >
+                <td className="py-2">{emp.name || <span className="text-gray-400">-</span>}</td>
                 <td className="py-2">{emp.email}</td>
                 <td className="py-2">
                   <span className={`rounded px-2 py-0.5 text-xs ${STATUS_COLOR[emp.status]}`}>
@@ -176,9 +200,19 @@ export function Employees() {
                   </span>
                 </td>
                 <td className="py-2">{new Date(emp.createdAt).toLocaleDateString('he-IL')}</td>
+                <td className="py-2 font-medium">{emp.blockCount}</td>
+                <td className="py-2 text-gray-500">
+                  {emp.lastActiveAt ? new Date(emp.lastActiveAt).toLocaleDateString('he-IL') : '-'}
+                </td>
                 <td className="py-2 text-left">
                   {emp.status !== 'disabled' && (
-                    <button className="text-xs text-red-600 hover:underline" onClick={() => handleDisable(emp.id)}>
+                    <button
+                      className="text-xs text-red-600 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDisable(emp.id);
+                      }}
+                    >
                       השבת
                     </button>
                   )}
