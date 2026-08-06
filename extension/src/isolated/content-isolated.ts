@@ -6,9 +6,12 @@ import { observeResponses } from './responseObserver';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
-// TEMPORARY DEBUG LOGGING - all console.log/warn calls below are prefixed
-// "[PII Shield]" so they're easy to filter/remove once the real-site
-// integration is confirmed working. Not meant to ship long-term as-is.
+// Diagnostic logging below is scoped to never include the raw text a
+// tokenize request carries - it can contain real PII, which must never
+// reach the browser console (readable by other extensions with debugger
+// permissions, remote-debugging tools, screen-share/support sessions,
+// etc.), not just never leave the browser entirely. The *tokenized*
+// output is safe to log - by definition it's already had any PII replaced.
 console.log('[PII Shield][isolated] content-isolated.ts loaded on', location.href);
 
 const tokenStore = new TokenStore();
@@ -57,7 +60,6 @@ async function handleTokenizeRequest(data: TokenizeRequestMessage): Promise<void
   console.log('[PII Shield][isolated] tokenize request received:', {
     id: data.id,
     textLength: data.text.length,
-    text: data.text,
     mode: storeState.failSafe ? 'fail-safe (regex-only)' : 'full (regex + company entity list)',
     knownEntityCount: storeState.entityIndex.size,
   });

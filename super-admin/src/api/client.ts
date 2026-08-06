@@ -38,6 +38,27 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The backend's error responses are always JSON (`{ statusCode, message,
+ * error? }` - Nest's own shape, and `message` can be a single string or an
+ * array of validation errors from the ValidationPipe). Extract a clean,
+ * human-readable string rather than surfacing the raw JSON body to the
+ * user if a caller renders `ApiError.message` directly.
+ */
+async function extractErrorMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '');
+  if (!text) return `שגיאה בשרת (קוד ${res.status})`;
+  try {
+    const parsed = JSON.parse(text) as { message?: string | string[] };
+    if (Array.isArray(parsed.message)) return parsed.message.join(', ');
+    if (typeof parsed.message === 'string') return parsed.message;
+  } catch {
+    // Not JSON - fall through to the generic message below rather than
+    // displaying whatever raw text came back.
+  }
+  return `שגיאה בשרת (קוד ${res.status})`;
+}
+
 async function request<T>(session: SuperAdminSession, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${session.backendUrl}${path}`, {
     ...init,
@@ -48,8 +69,7 @@ async function request<T>(session: SuperAdminSession, path: string, init: Reques
     },
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new ApiError(body || `Request failed with status ${res.status}`, res.status);
+    throw new ApiError(await extractErrorMessage(res), res.status);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

@@ -890,3 +890,363 @@ onboarding wizard's connection check meaningless (Week 4). None of these
 were hypothetical - each was reproduced, root-caused, fixed, and re-verified
 before moving on.
 
+## Pre-customer hardening pass
+
+Starting a structured hardening pass before the product is shown to real
+customers: rate limiting, cross-tenant authorization audit, secrets audit,
+DB backups, error handling, logging audit, then branding/professionalism
+(name suggestions, landing page, UI polish, README). Working autonomously
+per explicit instruction; decisions and reasoning documented here as they're
+made, local commits at the end of each part, no push/deploy until final
+explicit approval.
+
+### 1. Rate limiting
+
+Added `@nestjs/throttler`. Design:
+
+- **Tracking key**: by default the library tracks by IP. That's wrong for
+  this product - many employees of one customer company sit behind a single
+  shared office IP/NAT, so IP-based throttling risks legitimate users at a
+  busy customer locking each other out. `CustomThrottlerGuard`
+  (`backend/src/common/throttler/custom-throttler.guard.ts`) overrides
+  `getTracker()` to key by the request's `x-api-key`/`x-extension-key`
+  header when present, falling back to IP only for pre-auth requests (the
+  only such request in this system is `POST /admin/companies`, which uses a
+  different header, `x-admin-secret`, that this tracker doesn't special-case
+  - so it correctly falls through to IP).
+- **Global default**: `120 requests / 60s` per tracker key, applied via
+  `APP_GUARD` in `app.module.ts`. Generous - meant to catch obvious abuse,
+  not constrain normal usage.
+- **`CompaniesController` (admin/companies)**: stricter dedicated limit,
+  `30 requests / 15min`, IP-tracked (see above). This is the one endpoint
+  gated by a secret an operator chooses by hand
+  (`ADMIN_BOOTSTRAP_SECRET`) rather than a generated 256-bit key, so it's
+  the only meaningful online brute-force target in the system and gets
+  real protection: even a weak 9-digit numeric secret would take on the
+  order of hundreds of years to exhaust at 30 attempts/15min.
+
+**Why nothing else needed its own strict throttle**: audited every other
+guarded endpoint (`ApiKeyGuard`, `ExtensionKeyGuard` - employees, entities,
+connectors, session `companies/me`/`employees/me`). All of them authenticate
+via `apiKey`/`extensionKey`, which `generateSecret()`
+(`backend/src/common/crypto/hashing.util.ts`) creates as `randomBytes(32)`
+hex - 256 bits of entropy. No realistic rate limit makes guessing one of
+these feasible or infeasible; the entropy itself is the defense. The only
+human-chosen, guessable secret in the whole system is
+`ADMIN_BOOTSTRAP_SECRET`, already covered above.
+
+**Bug found and fixed before it shipped**: initially set the
+`CompaniesController` limit to `5/15min`. Before running anything, noticed
+the existing e2e suite (`pii-shield.e2e-spec.ts`) calls
+`POST /admin/companies` 12 times within a single Jest run (one persistent
+app instance, one IP, no `x-api-key`/`x-extension-key` header for the
+tracker to key on instead - so all 12 share one IP-keyed bucket). A limit of
+5 would have made the 6th+ legitimate call fail with `429` instead of its
+expected status, breaking the suite. Raised the limit to `30/15min` -
+comfortably covers the 12 known calls plus headroom, while remaining
+effectively unbreakable via brute force per the math above. Verified: full
+unit suite (5/5) and e2e suite (13/13, including a new dedicated
+rate-limit test) pass together.
+
+**New test**: `backend/test/rate-limit.e2e-spec.ts` - its own app instance
+(so it doesn't share/pollute the throttle budget used by the other e2e
+file's legitimate calls), fires 35 requests at `POST /admin/companies` with
+a wrong secret and asserts the first 30 come back `401` (rejected on the
+secret, not yet throttled) and the remaining 5 come back `429` - proving the
+guard actually rejects excess traffic, not just that it's wired up inertly.
+
+**Known limitation, accepted for now**: `CustomThrottlerGuard.getTracker()`
+reads the `x-api-key`/`x-extension-key` header value *before* it's
+validated (the global `APP_GUARD` throttler necessarily runs before the
+per-route `ApiKeyGuard`/`ExtensionKeyGuard` in Nest's guard execution order,
+so it has no way to know yet whether the key is real). This means an
+attacker could send a different garbage credential value on every request
+and get a fresh throttle bucket each time, evading the generous 120/min
+global default entirely. Decided this is acceptable at this stage because:
+(a) it only weakens the general "catch obvious abuse" limiter, not any
+secret-guessing protection - there's nothing guessable behind those guards
+per the entropy argument above; (b) closing it properly needs either a
+second, IP-only global throttle layered on top or edge/CDN-level rate
+limiting (Railway/Cloudflare), which is a reasonable follow-up but is
+volumetric-DoS hardening, not the brute-force risk this task is about.
+Noting it here so it isn't forgotten, not silently leaving it undocumented.
+
+### 2. Cross-tenant authorization audit
+
+Read every controller/service pair in the backend (`companies`, `employees`,
+`connectors`, `entities`, `audit-logs`, `dashboard`, `health-check`,
+`session`) and traced how `company`/`employee` gets attached to each
+request:
+
+- `ApiKeyGuard`/`ExtensionKeyGuard` both derive `request.company` /
+  `request.employee` by hashing the presented header and looking it up in
+  the DB - never from anything client-supplied (body/params/query). No DTO
+  in the codebase accepts a `companyId`/`employeeId` field (checked via
+  `grep -l companyId\|employeeId **/*.dto.ts` - zero matches), so there's no
+  way to spoof scoping through the request body either.
+- Every service method that looks up a resource by id
+  (`connectors.getOwned`, `employees.getOwned`, and the equivalent inline
+  checks in `entities.ingestBatch` for `connectorId`) uses
+  `findFirst({ where: { id, companyId: company.id } })` - a foreign
+  company's id naturally falls through to `NotFoundException` rather than
+  returning another tenant's row. List endpoints (`employees.list`,
+  `connectors.list`, `entities.list`, `audit-logs.list`,
+  `dashboard.getSummary`/`getAnomalies`, `health-check.getLatest`) all take
+  `companyId` from the authenticated company/employee, never as a
+  queryable parameter.
+- The one filter that looked initially suspicious -
+  `audit-logs.list`'s optional `?employeeId=` query param not being
+  independently checked against the caller's company - turns out to be
+  safe by construction: the Prisma query ANDs `companyId: company.id` with
+  `employeeId`, and every audit log's `employeeId` already belongs to
+  exactly one company, so passing another tenant's employeeId can only ever
+  produce zero rows, never a leak. Added an explicit test for this exact
+  case anyway (see below) rather than relying on the reasoning alone.
+- The connector's own local HTTP API (`connector/src/server.ts`, used
+  directly by the admin-console's "sensitive data" tab, bypassing the
+  central backend by design) is single-tenant by architecture - each
+  customer runs their own connector instance in their own network, so
+  there's no cross-tenant surface there to test. It does reuse the
+  company's central `apiKey` for its own auth via a plain `!==` string
+  comparison rather than a timing-safe one; noted for the secrets audit
+  (not a cross-tenant issue, and low severity given it's a LAN-only
+  service, not internet-facing).
+
+**New test file**: `backend/test/cross-tenant.e2e-spec.ts` - its own app
+instance, spins up two fully separate companies (A and B) with their own
+employees/connectors/entities/audit-logs, then systematically tries to
+reach from A into B's resources (and vice versa) across every controller:
+read/disable another company's employee by id, start/complete/fail-sync or
+delete another company's connector, ingest entities tagged with another
+company's connectorId, read another company's entity hashes via
+extensionKey, filter audit logs by another company's employeeId, read
+dashboard summary/health-check data, and confirm a company's own apiKey
+doesn't work as an extensionKey (and vice versa). 14 tests, all pass
+against the existing implementation - **no cross-tenant leak found**; the
+`findFirst({ id, companyId })` pattern used consistently throughout the
+codebase already closes this off correctly. Full suite (unit + e2e, 4
+files) verified green together: 5 unit + 27 e2e = 32 tests passing.
+
+### 3. Secrets audit
+
+Global search across every tracked file (`git ls-files`, 163 files) for:
+hardcoded API-key-shaped strings (`sk-...`, AWS `AKIA...`, PEM private key
+headers, GitHub/Slack token prefixes), literal `apiKey`/`password`/`secret`
+assignments outside of docs/tests/env-var references, and URLs with
+embedded `user:pass@host` credentials. **No hardcoded secrets found.**
+
+What the audit confirmed instead:
+
+- `backend/.env.example` is tracked (as intended, it's a template) and uses
+  an obvious `"change-me-in-production"` placeholder for both `JWT_SECRET`
+  and `ADMIN_BOOTSTRAP_SECRET` - not a real value. `.gitignore` excludes
+  `.env` and `.env.*` while explicitly re-allowing `.env.example`, and no
+  real `.env` file is tracked.
+- Every other reference to `ADMIN_BOOTSTRAP_SECRET`/`apiKey` across the repo
+  (admin-console, super-admin, `manual-verify.mjs`) is either a
+  `process.env.*` read or Hebrew UI copy telling the user *which* env var to
+  set on their own Railway deployment - never a real value.
+- `connector.config.json` (holds the real per-company `apiKey` for a
+  deployed connector instance) is `.gitignore`d and never committed;
+  `connector/src/config.ts` only reads it from disk at runtime.
+- `docker-compose.dev.yml`'s Postgres password (`pii_dev_password`) is
+  local-dev-only, bound to a loopback-mapped port, not used by anything
+  that talks to production data - acceptable as-is, standard practice for
+  a local dev container.
+- `backend/src/health-check/health-check.service.ts`'s `CANARY_VALUE`
+  constant is intentionally hardcoded (already documented inline as safe)
+  - it's a fixed non-secret marker string used to prove the hash pipeline
+    is alive, not something that protects access to anything.
+
+**One real (non-secret) finding from this pass, fixed under item 2 in
+spirit but noting here since it surfaced during the secrets grep**:
+`connector/src/server.ts`'s local API auth compares the presented
+`x-api-key` header with `config.apiKey` using plain `!==`, not a
+timing-safe comparison (unlike the central backend, which hashes+compares
+via `hashSecret`/DB lookup, and the admin bootstrap check, which uses
+`timingSafeEqual` explicitly). Low real-world severity - this endpoint
+only listens on the customer's own local network (documented purpose:
+"never through the central backend"), not the public internet, so a remote
+timing attack isn't realistically mountable. Left as-is rather than
+"fixed" to avoid scope creep on a non-public-facing service during this
+pass; flagged here so it isn't forgotten if the connector's API is ever
+exposed more broadly.
+
+### 4. Postgres backups
+
+Checked the production Postgres volume's backup schedule via Railway's
+GraphQL API (`railway api`, no CLI subcommand exists for this - had to
+`railway api search backup` to find `volumeInstanceBackupScheduleList` /
+`volumeInstanceBackupScheduleUpdate`, then resolve the volume's
+`volumeInstanceId` via `environment.volumeInstances`, since the direct
+`Volume.volumeInstances` field is deprecated in favor of the
+environment-scoped one). Confirmed: `volumeInstanceBackupScheduleList`
+returned `[]` - **no backup schedule existed**.
+
+Tried to enable one directly (`volumeInstanceBackupScheduleUpdate(kinds:
+[DAILY])`) - got back `"Not Authorized"`. Checked `me { workspaces { plan
+} }`: the workspace is on Railway's **Hobby** plan; native automated
+volume backups are a paid-plan feature. Upgrading the plan would fix this
+in one call, but that's a real recurring cost on the user's account, which
+is exactly the kind of decision this task's "don't stop to ask, except for
+something destructive/irreversible" instruction shouldn't be read to cover
+implicitly - spending the user's money isn't mine to decide, so I didn't.
+
+**What I built instead**: a self-contained daily backup inside the backend
+itself, not dependent on Railway's paid feature.
+`backend/src/backup/backup.service.ts` (wired via `backup.module.ts` into
+`app.module.ts`) - a `@Cron(EVERY_DAY_AT_3AM)` job that reads every row of
+every table (`Company`, `Employee`, `Connector`, `SensitiveEntity`,
+`AuditLog`, `HealthCheck`) via Prisma and writes them as one timestamped
+JSON file to `BACKUP_DIR` (defaults to `./backups` locally; meant to point
+at a dedicated volume in production - see below), then prunes files older
+than `BACKUP_RETENTION_DAYS` (default 14).
+
+Why a JSON row-dump instead of real `pg_dump`: the backend deploys via
+Railway's Nixpacks auto-detection, not a custom Dockerfile, so there's no
+guarantee `pg_dump` exists in the build image without adding Nixpacks apt
+packages - a change I can't verify without an actual deploy, which is out
+of scope until final approval per the "no push/deploy until the very end"
+rule. A Prisma-based JSON dump only needs what's already in the image
+(Node + the Prisma client already used everywhere else), so it's fully
+testable locally right now. It's a logical, row-level backup (sufficient to
+reconstruct all application data) rather than a byte-identical binary
+Postgres backup (no WAL, no index internals) - an accepted tradeoff for
+"reasonable, not perfect, at this stage" per the task's own framing, given
+the DB's actual size (170MB volume, well within what a JSON dump handles
+comfortably).
+
+Worth calling out explicitly since it's the core premise of this whole
+product: every table backed up here only ever contains `entityHash`
+(HMAC-SHA256 of the real value) and *hashes* of `apiKey`/`extensionKey`
+secrets - never raw PII or a usable credential. The backup file itself
+carries no more sensitive information than the live DB already does, so
+this doesn't introduce a new class of data-at-rest risk.
+
+**Tested**: `backend/test/backup.e2e-spec.ts` (2 tests, against the real
+local Postgres) - confirms a real backup file is written containing every
+table (including a freshly-created company) with only a hashed
+`apiKeyHash` (`/^[a-f0-9]{64}$/`, never a raw secret), and confirms pruning
+correctly removes a synthetic 30-day-old backup file while preserving a
+freshly-written one. Full suite verified together: 5 unit + 29 e2e = 34
+tests passing.
+
+**Not yet done - required at final-deploy time, documented here so it
+isn't forgotten**: this only actually protects production data once (a) a
+dedicated Railway volume is attached to the `backend` service (e.g.
+`railway volume add --service backend --mount-path /data/backups` -
+deliberately a *separate* volume from `postgres-volume`, so a problem with
+the DB's own volume doesn't take the backups down with it) and (b)
+`BACKUP_DIR=/data/backups` is set on that service and it's redeployed.
+Both are real infrastructure/deploy actions, correctly held until the
+user's final approval per the working rules for this task - not done here.
+
+### 5. Global error handling
+
+Nest's own built-in default filter already avoids leaking stack traces on
+uncaught errors, but the project had no explicit filter of its own - relying
+on implicit framework behavior for something this security-relevant isn't
+great practice (it's invisible, untested, and could silently change on a
+Nest version bump). Added `backend/src/common/filters/all-exceptions.filter.ts`
+(`@Catch()` - catches everything) and registered it globally via
+`APP_FILTER` in `app.module.ts` (same pattern already used for the
+throttler guard, which has the added benefit of it being active in the
+e2e test app instances too, not just when `main.ts`'s `bootstrap()` runs):
+
+- Our own `HttpException`s (`NotFoundException`, `UnauthorizedException`,
+  the `ValidationPipe`'s `BadRequestException`, `ConflictException`,
+  `ThrottlerException`, etc.) pass through with their own
+  deliberately-crafted status+message - these are all intentional,
+  client-safe messages already.
+- Anything else (a raw `Error`, an unwrapped Prisma error, a bug) - the
+  full error and its stack are logged server-side via Nest's `Logger` (so
+  it's still debuggable from Railway logs), but the client only ever gets
+  a flat `{ statusCode: 500, message: 'Internal server error' }`.
+
+**Test**: `backend/test/error-handling.e2e-spec.ts` - overrides
+`DashboardService` in a dedicated test module to throw a raw error
+containing fake internal details (`ECONNREFUSED at /internal/db-pool.ts:42
+- connection to 10.0.4.12 failed`) and asserts the actual HTTP response is
+exactly the generic message, with no trace of the file path, IP, or error
+text anywhere in the response body - a real assertion, not just "the code
+looks right." A second test confirms a genuine `HttpException` (missing
+`x-admin-secret`) still returns its normal structured message, as a
+regression check that the new filter didn't change existing behavior.
+
+**Related fix found and made while in this code**: the admin-console's and
+super-admin's `api/client.ts` both threw `ApiError` using the *raw HTTP
+response body text* as the error message - safe from a stack-trace
+perspective (the backend never sends one), but unprofessional: several
+places in the UI render `err.message` directly, so a validation failure
+would have shown the user the literal JSON blob
+(`{"statusCode":404,"message":"Connector not found"}`) instead of a clean
+message. Added `extractErrorMessage()` to both clients (JSON-parses the
+body, pulls out Nest's `message` field - which can be a string or an array
+of validation errors - joins array messages, and falls back to a generic
+Hebrew "שגיאה בשרת (קוד X)" for anything unparseable) so `ApiError.message`
+is always something reasonable to show a user. Verified: both apps
+type-check and build cleanly (`tsc --noEmit` + `vite build`, both green,
+no other file in either app used the same raw-text pattern per a repo-wide
+grep). Full backend test suite verified together: 5 unit + 31 e2e = 36
+tests passing.
+
+### 6. Logging audit
+
+Grepped every `console.log`/`.warn`/`.error`/`.debug` and Nest `Logger`
+call across all five packages (backend, connector, extension,
+admin-console, super-admin), then checked each one for whether it could
+ever print a raw secret (`apiKey`/`extensionKey`/`entitySalt`, not their
+hashes) or raw PII (an employee's actual typed text, or a raw entity value
+before hashing).
+
+**Real finding, fixed**: `extension/src/main-world/content-main.ts` and
+`extension/src/isolated/content-isolated.ts` had extensive
+"TEMPORARY DEBUG LOGGING" (their own comment, added during the earlier
+real-site PII-detection bug hunts - see the "three rounds of real-site
+extension PII-detection bug fixes" entries earlier in this log) that
+printed the user's **actual typed composer text and full outgoing request
+bodies** straight to the page's browser console - on real AI chat sites,
+this is exactly the raw PII the product exists to protect. It never left
+the browser, but that's not the same as safe: console output is readable
+by any other extension with debugger permissions, by remote-debugging
+tools, and gets captured whole in screen-share/support sessions - all
+realistic exposure paths for a product whose entire pitch is "we never let
+this leave the browser at all."
+
+Fixed by removing every raw-value argument from these log statements
+(`value`, `liveText`, `bodyText`, `data.text`) while keeping the
+structural/diagnostic logging that has ongoing debugging value and carries
+no PII: URLs, event types, booleans, counts, and text **lengths** instead
+of the text itself. Two categories were intentionally left as-is because
+they're already safe by construction: the *tokenized* output
+(`result.tokenizedText`/`response.tokenizedText`) is, by definition,
+already had any detected PII replaced with tokens - logging it is the
+whole point of a redaction pipeline, not a leak - and `TokenizeResponseMessage`
+(checked its type definition) only ever carries `tokenizedText`,
+`hiddenCount`, `failSafe`, never the original text. Updated the stale
+"TEMPORARY... not meant to ship long-term" comments to explain the actual
+scoping rule instead, since after this fix the remaining logging is safe
+to ship indefinitely, not something to strip later.
+
+Also checked (all clean, no changes needed): `connector/src/*` - the
+logger only ever prints connector ids and counts, never the raw `value`
+being hashed (that only ever flows into `computeEntityHash()` or the local
+state store, consistent with the connector's whole design of keeping raw
+values local); `admin-console/src` and `super-admin/src` - zero
+`console.*` calls in either app; `backend/src` - existing `Logger` calls
+only print company ids, file paths, counts, and caught-error
+messages/stacks (server-side only, to Railway's own log viewer - not sent
+to any client, per item 5 above - and never include a raw secret or PII
+value in this codebase's own code). A final repo-wide grep for any log
+statement whose arguments reference `apiKey`/`extensionKey`/`entitySalt`/
+`password`/`secret` by name turned up nothing outside what's already
+covered above.
+
+**Tested**: extension `tsc --noEmit` (clean), `npm run build` (clean),
+`npm test` (19/19 unit tests pass, unaffected - only log statement
+arguments changed, no control flow), and the real-browser Playwright e2e
+suite (`xvfb-run -a npm run e2e`, against a local mock AI-chat page, not a
+real external site) - both scenarios (plain textarea and a ProseMirror-style
+contentEditable composer that blurs on send) still pass, confirming the
+tokenize/detokenize pipeline itself is untouched by this change.
+

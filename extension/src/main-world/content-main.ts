@@ -1,8 +1,10 @@
 import { PII_SHIELD_REQUEST, PII_SHIELD_RESPONSE, TokenizeRequestMessage, TokenizeResponseMessage } from '../shared/messages';
 
-// TEMPORARY DEBUG LOGGING - all console.log/warn calls below are prefixed
-// "[PII Shield]" so they're easy to filter/remove once the real-site
-// integration is confirmed working. Not meant to ship long-term as-is.
+// Diagnostic logging below is scoped to never include raw typed/composer
+// text or outgoing request bodies - both can contain real PII, which must
+// never reach the browser console (readable by other extensions with
+// debugger permissions, remote-debugging tools, screen-share/support
+// sessions, etc.), not just never leave the browser entirely.
 console.log('[PII Shield][main] content-main.ts loaded on', location.href);
 
 const pending = new Map<string, { resolve: (r: TokenizeResponseMessage) => void; reject: (e: Error) => void }>();
@@ -66,12 +68,12 @@ function getLiveInputText(): string | null {
   if (active) {
     if (active.tagName === 'TEXTAREA') {
       const value = (active as HTMLTextAreaElement).value;
-      console.log('[PII Shield][main] getLiveInputText: found via activeElement TEXTAREA:', value);
+      console.log('[PII Shield][main] getLiveInputText: found via activeElement TEXTAREA, length', value.length);
       return value;
     }
     if (active.isContentEditable) {
       const value = active.innerText;
-      console.log('[PII Shield][main] getLiveInputText: found via activeElement contentEditable:', value);
+      console.log('[PII Shield][main] getLiveInputText: found via activeElement contentEditable, length', value.length);
       return value;
     }
   }
@@ -80,7 +82,10 @@ function getLiveInputText(): string | null {
     const el = document.querySelector(selector);
     if (!el) continue;
     const value = el.tagName === 'TEXTAREA' ? (el as HTMLTextAreaElement).value : (el as HTMLElement).innerText;
-    console.log(`[PII Shield][main] getLiveInputText: activeElement did not match, fell back to querySelector("${selector}"):`, value);
+    console.log(
+      `[PII Shield][main] getLiveInputText: activeElement did not match, fell back to querySelector("${selector}"), length`,
+      value.length,
+    );
     return value;
   }
 
@@ -111,7 +116,10 @@ function captureFromElement(el: HTMLElement | null, reason: string): void {
   if (value && value.trim()) {
     capturedInputText = value;
     capturedInputTextAt = Date.now();
-    console.log(`[PII Shield][main] captured composer text ahead of a possible submit (reason: ${reason}):`, value);
+    console.log(
+      `[PII Shield][main] captured composer text ahead of a possible submit (reason: ${reason}), length`,
+      value.length,
+    );
   }
 }
 
@@ -185,17 +193,16 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
     console.log(
       '[PII Shield][main] tokenizeOutgoingBody: using text captured',
       capturedAge,
-      'ms ago from the verified input target:',
-      liveText,
+      'ms ago from the verified input target, length',
+      liveText.length,
     );
   } else {
     liveText = getLiveInputText();
     console.log(
-      '[PII Shield][main] tokenizeOutgoingBody: no recent captured text - falling back to a live DOM read:',
-      liveText,
+      '[PII Shield][main] tokenizeOutgoingBody: no recent captured text - falling back to a live DOM read, length',
+      liveText?.length ?? 0,
     );
   }
-  console.log('[PII Shield][main] tokenizeOutgoingBody: liveText =', liveText, '| bodyText =', bodyText);
   if (!liveText || !liveText.trim()) {
     console.warn(
       '[PII Shield][main] tokenizeOutgoingBody: no live input text found (DOM read empty AND no recent captured text) - passing body through UNCHANGED.',

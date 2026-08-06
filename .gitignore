@@ -10,3 +10,4 @@ connector.config.json
 coverage/
 .vite/
 *.tsbuildinfo
+backend/backups/
