@@ -1250,3 +1250,191 @@ real external site) - both scenarios (plain textarea and a ProseMirror-style
 contentEditable composer that blurs on send) still pass, confirming the
 tokenize/detokenize pipeline itself is untouched by this change.
 
+## Pre-customer branding pass
+
+Part 1 (hardening) is done and committed. Moving to Part 2: branding and
+professionalism - name suggestions (proposal only, no code changes -
+that decision is the user's alone), a standalone landing page, UI polish
+across admin-console/super-admin, and a professional top-level README.
+
+### 7. הצעות שם (Name suggestions)
+
+"GHOSTAI" is this repo's working folder name only - it was never chosen as
+a product name and doesn't appear in any user-facing UI copy. Below are 5
+candidates for an actual commercial name, spanning English, Hebrew-rooted,
+and invented-word options, since the product's first customers are likely
+Israeli enterprises (law firms, healthcare, finance - the kind of org with
+real client-PII exposure and an existing compliance mindset) but the
+README/investor story should read fine internationally too. **Proposal
+only - nothing below has been applied anywhere in the code.**
+
+1. **PromptGuard** (English) - the most literally self-explanatory option:
+   an enterprise buyer meeting the product for the first time understands
+   the value prop from the name alone, no explanation needed. Trade-off:
+   descriptive names like this are harder to trademark/own as a distinct
+   brand long-term, and "___Guard" is a common pattern in security
+   product naming (less distinctive on a crowded page of vendor logos).
+
+2. **Redactly** (English) - ties to "redaction," a term enterprise legal/
+   compliance buyers already use and trust (unlike "tokenization," which
+   is accurate but meaningless to a non-technical buyer). The "-ly" SaaS
+   suffix reads modern without being generic. More ownable as a proper
+   noun/trademark than PromptGuard.
+
+3. **Veilon** (English, invented word) - short, ownable, sounds like an
+   established enterprise security brand by cadence alone (similar
+   register to Vercel/Verkada/Sentinel-style names). Needs a strong
+   tagline since it doesn't self-explain the product like the first two -
+   but that's also what makes it a real brand rather than a description,
+   and gives more room to grow beyond "just" AI-prompt protection later.
+
+4. **Magen AI / מגן AI** (Hebrew-rooted) - מגן ("shield/guard") is
+   immediately trustworthy and warm to a Hebrew-speaking enterprise buyer,
+   and reads cleanly as "Magen AI" in English/Latin script too, so it
+   works as one name in both markets rather than needing a translation.
+   Worth being deliberate about: מגן carries real cultural weight (Magen
+   David Adom) - likely a positive, trust-building association for this
+   kind of protective product, but worth the user's own judgment call on
+   whether that's desired or feels presumptuous.
+
+5. **ShomerAI / שומרAI** (Hebrew-English portmanteau) - שומר ("guardian/
+   watchman") has a warmer, more human register than מגן - less
+   "institutional shield," more "someone is actually watching out for
+   you." Follows a naming pattern common among Israeli startups (a Hebrew
+   root word directly fused with an English/tech suffix). Trade-off:
+   "Shomer" is a somewhat harder pronunciation for English-only speakers
+   than the other options.
+
+No recommendation is being made here on purpose - this is the user's
+decision per the task's own framing, not something to pre-empt.
+
+### 8. Landing page
+
+New `landing/` workspace - a standalone marketing page, completely
+separate from `admin-console` (requires an `apiKey` to do anything) and
+`super-admin` (operator-only). Same tooling as the other two frontends
+(Vite + React + TS + Tailwind, `serve -s dist` in production) for
+deployment consistency, added to the root `package.json` workspaces array.
+Single page, no router, no auth, no backend calls - genuinely static.
+
+Content, in order: hero (what it does + two CTAs), a 3-point "risk you
+already have today" section (employees already pasting client data into
+AI tools, no visibility for IT/compliance, real legal exposure for
+regulated industries), a 3-step "how it works" section, a dedicated
+dark-background trust section stating the product's actual core
+architectural invariant (raw data never leaves the customer's network/
+browser, the central system only ever stores a one-way hash, and the
+extension fails safe/closed if the backend is unreachable) - this is the
+single most compelling, and truthful, differentiator for a
+compliance-minded enterprise buyer, so it gets its own visually distinct
+section rather than being buried in a bullet list, a "who it's for"
+section (law firms, healthcare, finance, HR - anyone handling client-
+confidential data), and a contact/demo section.
+
+Used the "PII Shield" name throughout (not a new choice - it's already the
+name shown in the live super-admin UI header/title today, so this doesn't
+pre-empt the naming decision from item 7 above).
+
+**Contact mechanism**: a `mailto:` CTA rather than a working form, since a
+real form needs email-sending infrastructure (which service? whose
+account/API key?) that isn't this task's call to set up unilaterally.
+Address is configurable via `VITE_CONTACT_EMAIL` (documented in
+`landing/.env.example` and `landing/README.md`), defaulting to an obviously
+placeholder `contact@example.com` so it's impossible to miss that this
+needs to be set to a real, monitored address before the page goes in front
+of actual prospects - not done here since the real address depends on
+whatever domain/name the user ends up choosing.
+
+**Tested**: `tsc --noEmit` and `npm run build` both clean; loaded the real
+dev server in an actual headless Chromium via Playwright and took a
+full-page screenshot to visually confirm layout, RTL flow, and that the
+numbered "how it works" steps read in the correct right-to-left order (a
+real risk with CSS grid + RTL - verified rather than assumed); also ran
+`npm start` (the exact command Railway will run in production) and
+confirmed the built `dist/` serves with a real `200`.
+
+### 9. Polish across existing interfaces
+
+**Favicon**: none of the three web apps (`admin-console`, `super-admin`,
+`landing`) had one at all - browser tabs showed a generic blank-page icon,
+one of those small details that reads as "unfinished" to a first-time
+visitor. Added a shared `favicon.svg` (a simple shield-with-checkmark
+glyph in the indigo already used as the brand accent color throughout all
+three apps) to each app's `public/` directory and wired a `<link
+rel="icon">` into each `index.html`. Deliberately an abstract icon, not
+tied to any of the name candidates from item 7 - doesn't pre-empt that
+decision.
+
+While in there, also gave the **browser extension** proper toolbar icons
+(16/32/48/128px PNGs, rasterized from the same SVG via ImageMagick
+`convert`) - it had none either, so Chrome was showing every employee a
+generic puzzle-piece icon in their toolbar. Not explicitly named in this
+task's list (which only called out admin-console/super-admin), but it's
+the same "looks unfinished" problem on the single most-seen surface of the
+whole product, so in scope in spirit. Wired via `manifest.json`'s
+`icons`/`action.default_icon` and `vite.config.mts`'s `viteStaticCopy`
+targets (added `icons/` alongside the existing `manifest.json` copy).
+
+**Page titles**: `admin-console` ("PII Shield - ניהול") and `super-admin`
+("PII Shield - Super Admin") already had clear, professional titles from
+earlier work - left as-is. Added a `<meta name="description">` to both
+(previously only `landing` had one) since that also affects link-preview
+quality if either is ever shared, not just SEO.
+
+**Error messages**: went through every `catch` block in `admin-console`
+and `super-admin` (18 total). Found they were already generally well-built
+- specific Hebrew messages per status code (e.g. 401 vs. 409 handled
+differently), not raw dumps - thanks to earlier work in this project.
+The one real gap was the `ApiError`/`ConnectorApiError` message-extraction
+issue already found and fixed under item 5 above (raw JSON body ->
+clean parsed message). `ConnectorApiError`'s own fallback (`Connector
+request failed: ${status}`) was already reasonable - it's talking to a
+connector on the admin's own local network, where surfacing the actual
+HTTP status is useful debugging info, not a leak. No literal
+`"Error: undefined"`-style bugs found anywhere.
+
+**Tested**: rebuilt `admin-console`, `super-admin`, and the extension
+after all changes - all three build clean, `favicon.svg` present in both
+web apps' `dist/`, extension's `dist/icons/*.png` present and manifest.json
+valid JSON. Re-ran the extension's real-Chromium Playwright e2e suite
+(`xvfb-run -a npm run e2e`) to confirm the new manifest/icon config didn't
+break extension loading - both scenarios still pass. Also started the real
+backend + admin-console dev servers and used Playwright to load the actual
+page and confirm `document.title` and the favicon `<link>` tag are both
+present and correct, not just "looks right in the source file."
+
+### 10. Top-level README
+
+Rewrote `README.md` for a reader who doesn't already know this codebase -
+someone evaluating it (an investor, a potential partner, a new engineer)
+rather than someone already working in it day to day. Restructured around:
+a two-sentence elevator pitch of what the product actually does and why it
+matters (not "a NestJS backend with a browser extension" - what problem it
+solves for an employer), a plain-language "how it works" walkthrough of the
+4-step architecture that leads with the hash-only privacy guarantee (the
+single most important fact about this product, now stated in the first
+screen of the README rather than requiring someone to already know to look
+in `SECURITY.md`), an updated components table (previous version was
+missing `super-admin` and `landing`, both added since the version this
+README was last touched), and an honest "Status" section stating plainly
+that this is pre-launch with no production customer yet - matching the
+instruction to make this presentable, not to oversell it.
+
+Kept the local dev quick-start (still genuinely useful, just moved lower,
+below the pitch/architecture) and added the two steps missing from it
+(`super-admin`, `landing`). Left `BUILD_LOG.md`'s full week-by-week history
+out entirely, as instructed - the new README points to it for "how did we
+get here" rather than repeating it.
+
+**Bug found and fixed while cross-checking this**: the README claimed
+"each component has its own README.md," but `super-admin/README.md` never
+existed - it was the one component added later (per the earlier session's
+work) that never got one. Added `super-admin/README.md` (auth model, run/
+build commands) matching the style already used by `admin-console/`,
+`connector/`, and `extension/`'s own READMEs, so the top-level claim is
+actually true. Verified every file and relative link referenced from the
+new top-level README (`SECURITY.md`, `BUILD_LOG.md`, `PII-Shield-Spec.md`,
+every component's own `README.md`, `docker-compose.dev.yml`,
+`backend/.env.example`, `connector/config.example.json`) really exists on
+disk, rather than assuming.
+

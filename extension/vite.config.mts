@@ -4,11 +4,19 @@ import { resolve } from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 // Builds the popup (a normal ES-module SPA, loaded via <script type="module">)
-// and copies manifest.json. Content scripts are built separately by
+// and copies manifest.json + icons. Content scripts are built separately by
 // scripts/build-content-scripts.mjs, since they must be self-contained
 // classic scripts, not ES modules with shared chunks - see that file.
 export default defineConfig({
-  plugins: [react(), viteStaticCopy({ targets: [{ src: 'manifest.json', dest: '.' }] })],
+  plugins: [
+    react(),
+    viteStaticCopy({
+      targets: [
+        { src: 'manifest.json', dest: '.' },
+        { src: 'icons', dest: '.' },
+      ],
+    }),
+  ],
   build: {
     outDir: 'dist',
     emptyOutDir: true,

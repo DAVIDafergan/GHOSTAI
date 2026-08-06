@@ -6,6 +6,7 @@
     "connector",
     "extension",
     "admin-console",
-    "super-admin"
+    "super-admin",
+    "landing"
   ]
 }
