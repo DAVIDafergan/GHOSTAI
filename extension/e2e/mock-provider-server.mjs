@@ -12,6 +12,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'mock-chat-page.html'));
 });
 
+app.get('/contenteditable', (req, res) => {
+  res.sendFile(path.join(__dirname, 'mock-chat-page-contenteditable.html'));
+});
+
 app.post('/chat', (req, res) => {
   receivedBodies.push(req.body);
   // Small delay simulates a real provider's latency, exercising the same

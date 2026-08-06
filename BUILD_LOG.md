@@ -641,6 +641,193 @@ still pass unchanged.
 
 ---
 
+## Real-site failure: two genuine bugs found on actual ChatGPT/Claude — 2026-08-05
+
+The one thing flagged since Week 3 as never actually tested - the real
+chat.openai.com/claude.ai/gemini.google.com sites - finally got tried, and
+found two real, confirmed bugs (plus surfaced a testing-methodology issue
+that wasn't a bug).
+
+**Bug 1 - manifest domain mismatch.** `chat.openai.com` now permanently
+redirects (`308`) to `chatgpt.com` - confirmed with `curl -I`, not assumed.
+Chrome matches content scripts against the final URL after redirects, and
+`chatgpt.com` was never in `manifest.json`'s `matches`/`host_permissions`,
+so the extension never injected on real ChatGPT at all. `claude.ai` has no
+such redirect. Fixed by adding `https://chatgpt.com/*` alongside the old
+domain everywhere it's referenced.
+
+**Bug 2 - input-detection selector, the actual root cause on claude.ai.**
+Confirmed via web search (not memory) that both ChatGPT and Claude build
+their composer on ProseMirror - a `contentEditable` div, not a `<textarea>`.
+`getLiveInputText()`'s existing fallback chain (`activeElement` →
+`querySelector('textarea')` → `querySelector('[contenteditable="true"]')`)
+looked like it should still cover this. It didn't, for two compounding
+reasons the user found by reading the newly-added debug logs on the real
+site: (1) clicking "Send" moves focus off the composer to `<body>` before
+the outgoing request fires, so `activeElement` is useless at that exact
+moment; (2) the real composer's `contenteditable` attribute is not
+literally the string `"true"` (some editors set it bare or as
+`"plaintext-only"`), so the fallback selector's exact-match silently found
+nothing. Net effect: `tokenizeOutgoingBody` always took the
+"no live input text found - passing through UNCHANGED" path - exactly
+matching the reported symptom of PII being sent as-is.
+
+Fixed by broadening the fallback chain to `.ProseMirror[contenteditable]`
+(a stable, framework-added class, not a per-app hashed one) then
+`[contenteditable]:not([contenteditable="false"])` (any non-false
+contenteditable state, not just the literal string `"true"`), before the
+existing `textarea` fallback. Verified against the *exact* failure mode,
+not just by inspection: added a new mock page
+(`e2e/mock-chat-page-contenteditable.html`) with a bare-attribute
+`contenteditable` div whose Send handler explicitly blurs focus to
+`<body>` before firing the request - reproducing both compounding
+conditions - and a matching Playwright test. Both e2e tests pass (2/2),
+alongside the unchanged unit suite (19/19).
+
+**Not a bug - a testing methodology gap worth recording.** The user's
+original test values (`דוד לוי`, `314159265`) would not have been expected
+to block regardless of any bug: `314159265` fails the Israeli ID checksum
+(spec 6.6 explicitly says checksum failures should never block, only be
+logged low-confidence), and `דוד לוי` was never registered as a known
+entity for the test company - this product deliberately does no generic
+name detection, only closed-list hash matching. Caught by walking through
+`idChecksum.ts`/`detectors.ts`/`tokenizer.ts` by hand before assuming the
+report described a detection-logic bug.
+
+**Debug logging added throughout** (content script load, entity-store
+refresh and *why* it fell back to fail-safe - previously silently
+swallowed - every intercepted fetch/XHR, what text was found and by which
+selector, whether the request body matched it, final tokenize result), all
+prefixed `[PII Shield]`. This is what let the user pinpoint bug 2 exactly
+from the console rather than guessing - explicitly marked as temporary/
+debug-only in the code, worth stripping or gating behind a debug flag
+before considering this production-ready.
+
+**Still open:** whether the fix holds on the *real* chatgpt.com/claude.ai
+(not just the now-more-realistic mock) - the user was about to re-test
+with full console output when this entry was written. Gemini was never
+touched in this pass; its composer structure is unconfirmed.
+
+---
+
+## Real-site failure, round 2: the actual root cause was a timing race, not the selector — 2026-08-05
+
+The selector fix above was necessary but not sufficient. Re-testing
+against real chat.openai.com, the user found the true root cause by
+reading the new debug logs: fixing the selector correctly identifies the
+composer element, but by the time the patched `fetch()` runs and calls
+`tokenizeOutgoingBody`, the app has *already cleared the composer*
+optimistically (before awaiting the network call) - so a DOM read at
+that exact moment always finds empty text, regardless of which selector
+is used. This is a fundamentally different bug from round 1: not "can't
+find the element," but "the element's content is gone by the time we look."
+
+Fixed exactly as the user specified: capture the composer's text ahead of
+time - on every `input` event, on `Enter` keydown, and on any `click` (all
+in the capture phase, so they run before the page's own handlers can react)
+- into a module-level variable with a timestamp. `tokenizeOutgoingBody` now
+tries a live DOM read first (unchanged, still correct if some provider
+*doesn't* clear the composer before the request), and falls back to the
+captured value (if captured within the last 5s) when the live read comes
+back empty. The captured value is cleared once actually consumed, so it
+can't leak into a later, unrelated request.
+
+Verified against the exact failure mode, not by inspection: updated
+`mock-chat-page-contenteditable.html` so its Send handler mimics real
+optimistic-clear behavior precisely - reads the composer into a JS
+variable, clears the DOM element, *then* awaits `fetch` with the
+already-read text (the outgoing request body is correct; only a DOM read
+at that point would find nothing). Without today's fix, this exact
+sequence is what would have failed - the mock previously didn't reproduce
+it. Both e2e tests pass (2/2), unit suite unchanged (19/19). Also ran a
+one-off script capturing the full console trace to confirm the actual
+code path taken (not just the end-to-end assertion passing for an
+unrelated reason) - the log line
+`live DOM read was empty (composer already cleared by the app) - using
+text captured 5 ms before submit instead: ...` fired exactly as expected,
+and the request body the mock server actually received was
+`[NAME_1], id [ID_NUMBER_1]` - zero raw PII.
+
+Also, while re-testing: added a real demo row (`אבנר כהן` / `123456782`,
+checksum-valid) to the local `demo_customers` table and ran a real
+connector sync against the live Railway backend (8 entities ingested,
+connector status `connected`) so there would be a genuine registered
+entity to test blocking against - the user's original test names were
+never actually synced (see round 1's testing-methodology note; row 1 in
+that table is literally `דוד לוי` / `314159265`, the exact original test
+values, still unsynced until now). Side observation, not investigated
+further: 13 separate connector records exist for this company, one every
+~15 minutes since the day before - a `connector daemon` process is
+apparently already running somewhere on a schedule, each restart seemingly
+creating a fresh connector record rather than reusing one via a persisted
+`connectorId`.
+
+**Still open:** the real chatgpt.com/claude.ai re-test with this second
+fix was pending when this entry was written.
+
+---
+
+## Real-site failure, round 3: the pre-submit capture matched the wrong element — 2026-08-06
+
+Re-testing round 2's fix against real chatgpt.com surfaced a third,
+different bug - and traced the mystery "13 connector records appearing
+every 15 minutes" flagged (unexplained) at the end of round 2 to its actual
+cause along the way.
+
+**The bug.** The captured text at submit time was a formatted letter
+template with bracket placeholders (`[שם הלקוח]`, `ת"ז [מספר תעודת זהות]`) -
+not anything the user typed. Root cause: the user had ChatGPT's **Canvas**
+panel open (a side document-editor). With Canvas open there are *two*
+`contentEditable` regions on the page, and round 2's capture mechanism
+had a real design flaw: its `click` listener re-ran a page-wide
+`getLiveInputText()` scan (activeElement, then `querySelector` fallbacks)
+*at click time*, by which point the real composer had already blurred to
+`<body>`. The scan then matched Canvas's static content instead of the
+real composer - and, critically, **overwrote** the correct text that
+`input` events had already captured correctly during typing, milliseconds
+before the request fired. So the earlier capture was right; a later,
+wrongly-targeted capture clobbered it right before it was needed.
+
+**The fix.** Capture directly from `event.target` for `input` and `keydown`
+events - never from a page-wide selector scan. `event.target` has zero
+ambiguity: it's always the exact element the user is actually typing into,
+regardless of how many other `contentEditable`/`ProseMirror` regions exist
+elsewhere on the page. Dropped the `click` listener's page-wide capture
+entirely (clicking "Send" targets the button, not the composer, so it was
+never a reliable signal - `input`/`keydown` during typing already capture
+correctly before any click happens). Also flipped priority in
+`tokenizeOutgoingBody`: the captured value (verified-correct target) is now
+tried *before* a fresh direct DOM read, not just as a fallback when the
+direct read is empty - a fresh read can be non-empty and still wrong on a
+page with multiple editable regions, which is exactly what happened here.
+
+**Verified against the exact reproduced scenario**, not by inspection:
+added a second, decoy `.ProseMirror[contenteditable]` element to
+`mock-chat-page-contenteditable.html`, populated with the same kind of
+static bracketed-placeholder text, positioned *before* the real composer in
+DOM order (so a naive `querySelector` - which returns the first match -
+would pick it, matching what must have happened on the real site). Both
+e2e tests pass (2/2), unit suite unchanged (19/19).
+
+**Solved in passing:** the "13 connector records every 15 minutes" oddity
+flagged at the end of round 2 turned out to be a `docker run --network
+host` container (`pii-shield-connector`, running `daemon --config
+/config/connector.config.json`) already running as root on this machine,
+independent of anything in this session - discovered by accident while
+diagnosing an unrelated e2e flake (a stray backend process left bound to
+port 3000 from much earlier in this session, plus normal system load,
+occasionally pushes the backend's cold `ts-node` compile past the e2e
+test's 60s startup timeout - not a real bug, just environment noise).
+Not touched, since it's a root-owned process outside this session's scope
+and nothing was broken by its existence - noted here only so it isn't
+mistaken for a mystery next time.
+
+**Still open:** the real chatgpt.com/claude.ai re-test with *this* fix
+(round 3) was pending when this entry was written. Gemini remains
+completely untouched/unverified in every round.
+
+---
+
 ## Final summary
 
 **What works, verified end-to-end against real infrastructure (not mocked)

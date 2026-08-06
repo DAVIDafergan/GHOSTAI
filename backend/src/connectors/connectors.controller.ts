@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import type { Company } from '@prisma/client';
 import { ConnectorsService } from './connectors.service';
 import { CreateConnectorDto } from './dto/create-connector.dto';
@@ -33,5 +33,10 @@ export class ConnectorsController {
   @Post(':id/sync/fail')
   fail(@CurrentCompany() company: Company, @Param('id') id: string) {
     return this.connectorsService.failSync(company, id);
+  }
+
+  @Delete(':id')
+  delete(@CurrentCompany() company: Company, @Param('id') id: string) {
+    return this.connectorsService.delete(company, id);
   }
 }

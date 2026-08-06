@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock AI Chat (ProseMirror-style composer)</title>
+  </head>
+  <body>
+    <!-- Reproduces a real bug found manually: with ChatGPT's Canvas panel
+         open, a second .ProseMirror contentEditable region exists on the
+         page (static, unrelated document content), positioned *before* the
+         real composer in DOM order - exactly as it must have been on the
+         real site, since a naive querySelector('.ProseMirror[...]') (which
+         returns the first match) picked it up instead of the real composer.
+         This element must never be captured/sent regardless of DOM order. -->
+    <div class="ProseMirror" contenteditable>
+      לכבוד
+      [שם הלקוח]
+      ת"ז [מספר תעודת זהות]
+    </div>
+
+    <!-- Mimics the real ChatGPT/Claude composer structure found via
+         research while diagnosing the real-site failure: a ProseMirror
+         editor root with a bare `contenteditable` attribute (no ="true"),
+         not a <textarea>. -->
+    <div id="input" class="ProseMirror" contenteditable role="textbox"></div>
+    <br />
+    <button id="send">Send</button>
+    <div id="messages"></div>
+    <script>
+      document.getElementById('send').addEventListener('click', async () => {
+        const inputEl = document.getElementById('input');
+        // The app reads the composer into its own variable first, exactly
+        // like a real React app would read it into component state...
+        const text = inputEl.innerText;
+
+        // ...then clears the composer and moves focus away *before*
+        // awaiting the network call - this is the exact real-world
+        // ChatGPT/Claude behavior found by manual testing: an optimistic
+        // UI clear that happens synchronously, before any fetch-
+        // interception code gets a chance to read the DOM. The outgoing
+        // request body below still has the real text (from the `text`
+        // variable captured above), but a DOM read at this point would
+        // find nothing - proving whether the extension's own pre-submit
+        // capture (not a DOM read at fetch-time) is what saves it.
+        inputEl.innerText = '';
+        inputEl.blur();
+        document.body.focus();
+
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await res.json();
+        const div = document.createElement('div');
+        div.className = 'response';
+        div.textContent = data.reply;
+        document.getElementById('messages').appendChild(div);
+      });
+    </script>
+  </body>
+</html>

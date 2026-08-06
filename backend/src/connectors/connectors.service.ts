@@ -68,4 +68,21 @@ export class ConnectorsService {
       data: { status: 'sync_incomplete' },
     });
   }
+
+  /**
+   * Removes a stale/duplicate connector record (e.g. one created by a
+   * daemon restart that predates a persisted connectorId). Entities are
+   * never deleted here - only unlinked from this connector - since a
+   * connector row is just sync-run metadata, not the source of truth for
+   * whether an entity is still known-sensitive.
+   */
+  async delete(company: Company, id: string) {
+    await this.getOwned(company, id);
+    await this.prisma.sensitiveEntity.updateMany({
+      where: { companyId: company.id, connectorId: id },
+      data: { connectorId: null },
+    });
+    await this.prisma.connector.delete({ where: { id } });
+    return { deleted: true };
+  }
 }

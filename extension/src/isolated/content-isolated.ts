@@ -6,6 +6,11 @@ import { observeResponses } from './responseObserver';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
+// TEMPORARY DEBUG LOGGING - all console.log/warn calls below are prefixed
+// "[PII Shield]" so they're easy to filter/remove once the real-site
+// integration is confirmed working. Not meant to ship long-term as-is.
+console.log('[PII Shield][isolated] content-isolated.ts loaded on', location.href);
+
 const tokenStore = new TokenStore();
 let storeState: EntityStoreState = {
   entityIndex: new Map(),
@@ -19,6 +24,18 @@ let storeState: EntityStoreState = {
 
 async function refreshEntityStore(): Promise<void> {
   storeState = await loadEntityStore();
+  console.log('[PII Shield][isolated] entity store refreshed:', {
+    failSafe: storeState.failSafe,
+    entityCount: storeState.entityIndex.size,
+    confidenceThreshold: storeState.confidenceThreshold,
+    enabledEntityTypes: storeState.enabledEntityTypes,
+    backendUrl: storeState.backendUrl,
+  });
+  if (storeState.failSafe) {
+    console.warn(
+      '[PII Shield][isolated] running in FAIL-SAFE mode - either no config saved yet (open the extension popup/options and connect), or the backend fetch failed (check Network tab for a request to <backendUrl>/employees/me and see what it returned).',
+    );
+  }
   updateBadge({ failSafe: storeState.failSafe });
 }
 
@@ -37,6 +54,14 @@ function reportBlockedEntities(entityTypes: string[]): void {
 }
 
 async function handleTokenizeRequest(data: TokenizeRequestMessage): Promise<void> {
+  console.log('[PII Shield][isolated] tokenize request received:', {
+    id: data.id,
+    textLength: data.text.length,
+    text: data.text,
+    mode: storeState.failSafe ? 'fail-safe (regex-only)' : 'full (regex + company entity list)',
+    knownEntityCount: storeState.entityIndex.size,
+  });
+
   const result = storeState.failSafe
     ? await tokenizeText(data.text, tokenStore, { failSafe: true })
     : await tokenizeText(data.text, tokenStore, {
@@ -46,6 +71,13 @@ async function handleTokenizeRequest(data: TokenizeRequestMessage): Promise<void
         confidenceThreshold: storeState.confidenceThreshold,
         enabledEntityTypes: storeState.enabledEntityTypes,
       });
+
+  console.log('[PII Shield][isolated] tokenize result:', {
+    hiddenCount: result.hiddenCount,
+    hiddenEntityTypes: result.hiddenEntityTypes,
+    failSafe: result.failSafe,
+    tokenizedText: result.tokenizedText,
+  });
 
   updateBadge({ failSafe: result.failSafe, hiddenCount: result.hiddenCount });
   if (!result.failSafe) reportBlockedEntities(result.hiddenEntityTypes);

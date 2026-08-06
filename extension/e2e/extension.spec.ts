@@ -171,3 +171,91 @@ test('a known company name and id number are tokenized before leaving the browse
     headers: { 'x-admin-secret': ADMIN_SECRET },
   });
 });
+
+test('same as above, but against a ProseMirror-style contentEditable composer (real ChatGPT/Claude structure, not a <textarea>) that blurs focus to <body> on send', async () => {
+  // Regression test for a real bug found manually against the actual
+  // chat.openai.com/claude.ai sites: getLiveInputText() previously only
+  // checked document.activeElement plus querySelector('textarea') and
+  // querySelector('[contenteditable="true"]'). On the real sites,
+  // activeElement was <body> (focus moves away on send) and the composer's
+  // contenteditable attribute is not literally the string "true" - so
+  // nothing matched and the message was sent completely unmodified. This
+  // mock page reproduces both of those conditions deliberately.
+  const companyRes = await fetch(`${BACKEND_URL}/admin/companies`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-admin-secret': ADMIN_SECRET },
+    body: JSON.stringify({ name: 'Extension E2E Test Co (contentEditable)' }),
+  });
+  const company = (await companyRes.json()) as { id: string; apiKey: string };
+
+  const meRes = await fetch(`${BACKEND_URL}/companies/me`, { headers: { 'x-api-key': company.apiKey } });
+  const me = (await meRes.json()) as { entitySalt: string };
+
+  const NAME = 'Avner Cohen';
+  const ID_NUMBER = '123456782';
+  await fetch(`${BACKEND_URL}/entities/batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': company.apiKey },
+    body: JSON.stringify({
+      entities: [
+        { entityHash: computeEntityHash(NAME, me.entitySalt), entityType: 'name', confidence: 100 },
+        { entityHash: computeEntityHash(ID_NUMBER, me.entitySalt), entityType: 'id_number', confidence: 100 },
+      ],
+    }),
+  });
+
+  const employeeRes = await fetch(`${BACKEND_URL}/employees`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': company.apiKey },
+    body: JSON.stringify({ email: 'e2e-contenteditable@extension-test.test' }),
+  });
+  const employee = (await employeeRes.json()) as { extensionKey: string };
+
+  const context = await chromium.launchPersistentContext('', {
+    headless: false,
+    args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
+  });
+
+  let [background] = context.serviceWorkers();
+  if (!background) background = await context.waitForEvent('serviceworker');
+  const extensionId = background.url().split('/')[2];
+
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.fill('input >> nth=0', BACKEND_URL);
+  await popup.fill('input >> nth=1', employee.extensionKey);
+  await popup.click('button[type=submit]');
+  await expect(popup.locator('text=מחובר בהצלחה')).toBeVisible({ timeout: 10000 });
+  await popup.close();
+
+  const page = await context.newPage();
+  await page.goto(`${MOCK_URL}/contenteditable`);
+  await page.waitForTimeout(3000);
+
+  await page.locator('#input').click();
+  await page.keyboard.type(`${NAME}, id ${ID_NUMBER}`);
+  await page.click('#send');
+  await page.waitForSelector('.response');
+
+  const receivedRes = await fetch(`${MOCK_URL}/__received`);
+  const received = (await receivedRes.json()) as { message: string }[];
+  const lastReceived = received[received.length - 1].message;
+
+  // The core assertion: the raw PII never appeared in the network payload,
+  // even though focus was on <body>, not the composer, when send fired.
+  expect(lastReceived).not.toContain(NAME);
+  expect(lastReceived).not.toContain(ID_NUMBER);
+  expect(lastReceived).toMatch(/\[NAME_\d+\]/);
+  expect(lastReceived).toMatch(/\[ID_NUMBER_\d+\]/);
+
+  const renderedText = await page.locator('#messages').innerText();
+  expect(renderedText).toContain(NAME);
+  expect(renderedText).toContain(ID_NUMBER);
+
+  await context.close();
+
+  await fetch(`${BACKEND_URL}/admin/companies/${company.id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-secret': ADMIN_SECRET },
+  });
+});

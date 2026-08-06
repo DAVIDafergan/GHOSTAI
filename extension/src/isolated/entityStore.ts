@@ -51,17 +51,24 @@ const FAIL_SAFE_STATE: EntityStoreState = {
  */
 export async function loadEntityStore(): Promise<EntityStoreState> {
   const config = await getConfig();
-  if (!config) return FAIL_SAFE_STATE;
+  if (!config) {
+    console.warn(
+      '[PII Shield][isolated] no saved config found (chrome.storage.local) - open the extension popup or options page and save a backend URL + extension key first.',
+    );
+    return FAIL_SAFE_STATE;
+  }
 
   try {
+    console.log('[PII Shield][isolated] fetching', `${config.backendUrl}/employees/me`);
     const meRes = await fetch(`${config.backendUrl}/employees/me`, {
       headers: { 'x-extension-key': config.extensionKey },
     });
-    if (!meRes.ok) throw new Error(`employees/me failed: ${meRes.status}`);
+    if (!meRes.ok) throw new Error(`employees/me failed: ${meRes.status} ${meRes.statusText}`);
     const me = (await meRes.json()) as {
       company: { entitySalt: string; confidenceThreshold: number; enabledEntityTypes: string[] };
     };
     const entityIndex = await fetchAllEntities(config.backendUrl, config.extensionKey);
+    console.log('[PII Shield][isolated] loaded', entityIndex.size, 'known entities from backend');
     return {
       entityIndex,
       companySalt: me.company.entitySalt,
@@ -71,7 +78,15 @@ export async function loadEntityStore(): Promise<EntityStoreState> {
       backendUrl: config.backendUrl,
       extensionKey: config.extensionKey,
     };
-  } catch {
+  } catch (err) {
+    // Swallowed on purpose (spec 6.6 fail-safe requirement: never let a
+    // network/CORS/auth error throw and block the page) - but logging the
+    // actual cause is essential for diagnosing why fail-safe triggered,
+    // since silence here previously looked identical to "everything's fine."
+    console.error(
+      '[PII Shield][isolated] failed to load entity store, falling back to fail-safe mode. Actual error:',
+      err,
+    );
     return FAIL_SAFE_STATE;
   }
 }
