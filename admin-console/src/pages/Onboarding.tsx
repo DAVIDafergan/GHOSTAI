@@ -51,7 +51,7 @@ export function Onboarding() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center p-8" dir="rtl">
-      <h1 className="mb-2 text-2xl font-bold text-indigo-700">הקמת PII Shield</h1>
+      <h1 className="mb-2 text-2xl font-bold text-indigo-700">הקמת Nistar</h1>
       <p className="mb-8 text-sm text-gray-500">שלב {draft.step} מתוך 4</p>
       {draft.step === 1 && <StepCompanyDetails draft={draft} onNext={update} />}
       {draft.step === 2 && <StepConnectSource draft={draft} onNext={update} />}
@@ -98,7 +98,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">
-        מסך זה מיועד אליכם כמפעילי PII Shield, ליצירת חברת לקוח חדשה - לא ללקוח עצמו. מלאו כאן את פרטי
+        מסך זה מיועד אליכם כמפעילי Nistar, ליצירת חברת לקוח חדשה - לא ללקוח עצמו. מלאו כאן את פרטי
         הלקוח שעבורו אתם פותחים חשבון.
       </p>
       <Field
@@ -132,7 +132,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
         <div className="mt-3">
           <Field
             label="כתובת שרת ה-backend"
-            help="כתובת ה-API של שרת PII Shield שהקמתם. זו כתובת קבועה של הפריסה שלכם - נשארת זהה לכל חברות הלקוח שתיצרו, ואין צורך לשנות אותה כאן אלא אם הקמתם פריסה נפרדת."
+            help="כתובת ה-API של שרת Nistar שהקמתם. זו כתובת קבועה של הפריסה שלכם - נשארת זהה לכל חברות הלקוח שתיצרו, ואין צורך לשנות אותה כאן אלא אם הקמתם פריסה נפרדת."
             howToFind="זו כתובת האינטרנט (URL) של שרת ה-backend שלכם, לדוגמה https://backend-production-xxxx.up.railway.app - תמצאו אותה בלוח הבקרה של Railway, תחת השירות backend."
           >
             <input

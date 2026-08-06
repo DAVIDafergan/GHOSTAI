@@ -5,7 +5,7 @@ import { PII_SHIELD_REQUEST, PII_SHIELD_RESPONSE, TokenizeRequestMessage, Tokeni
 // never reach the browser console (readable by other extensions with
 // debugger permissions, remote-debugging tools, screen-share/support
 // sessions, etc.), not just never leave the browser entirely.
-console.log('[PII Shield][main] content-main.ts loaded on', location.href);
+console.log('[Nistar][main] content-main.ts loaded on', location.href);
 
 const pending = new Map<string, { resolve: (r: TokenizeResponseMessage) => void; reject: (e: Error) => void }>();
 
@@ -25,7 +25,7 @@ function requestTokenization(text: string): Promise<TokenizeResponseMessage> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pending.delete(id);
-      reject(new Error('PII Shield: tokenization request timed out - message not sent'));
+      reject(new Error('Nistar: tokenization request timed out - message not sent'));
     }, 5000);
     pending.set(id, {
       resolve: (r) => {
@@ -61,19 +61,19 @@ const FALLBACK_SELECTORS = ['.ProseMirror[contenteditable]', '[contenteditable]:
 
 function getLiveInputText(): string | null {
   const active = document.activeElement as HTMLElement | null;
-  console.log('[PII Shield][main] getLiveInputText: document.activeElement =', {
+  console.log('[Nistar][main] getLiveInputText: document.activeElement =', {
     tagName: active?.tagName,
     isContentEditable: active?.isContentEditable,
   });
   if (active) {
     if (active.tagName === 'TEXTAREA') {
       const value = (active as HTMLTextAreaElement).value;
-      console.log('[PII Shield][main] getLiveInputText: found via activeElement TEXTAREA, length', value.length);
+      console.log('[Nistar][main] getLiveInputText: found via activeElement TEXTAREA, length', value.length);
       return value;
     }
     if (active.isContentEditable) {
       const value = active.innerText;
-      console.log('[PII Shield][main] getLiveInputText: found via activeElement contentEditable, length', value.length);
+      console.log('[Nistar][main] getLiveInputText: found via activeElement contentEditable, length', value.length);
       return value;
     }
   }
@@ -83,14 +83,14 @@ function getLiveInputText(): string | null {
     if (!el) continue;
     const value = el.tagName === 'TEXTAREA' ? (el as HTMLTextAreaElement).value : (el as HTMLElement).innerText;
     console.log(
-      `[PII Shield][main] getLiveInputText: activeElement did not match, fell back to querySelector("${selector}"), length`,
+      `[Nistar][main] getLiveInputText: activeElement did not match, fell back to querySelector("${selector}"), length`,
       value.length,
     );
     return value;
   }
 
   console.warn(
-    '[PII Shield][main] getLiveInputText: found NOTHING - no focused textarea/contentEditable, and none of',
+    '[Nistar][main] getLiveInputText: found NOTHING - no focused textarea/contentEditable, and none of',
     FALLBACK_SELECTORS,
     'matched anywhere on the page. The site\'s input box DOM structure may not match what this looks for.',
   );
@@ -117,7 +117,7 @@ function captureFromElement(el: HTMLElement | null, reason: string): void {
     capturedInputText = value;
     capturedInputTextAt = Date.now();
     console.log(
-      `[PII Shield][main] captured composer text ahead of a possible submit (reason: ${reason}), length`,
+      `[Nistar][main] captured composer text ahead of a possible submit (reason: ${reason}), length`,
       value.length,
     );
   }
@@ -191,7 +191,7 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
     liveText = capturedInputText;
     usedCapturedFallback = true;
     console.log(
-      '[PII Shield][main] tokenizeOutgoingBody: using text captured',
+      '[Nistar][main] tokenizeOutgoingBody: using text captured',
       capturedAge,
       'ms ago from the verified input target, length',
       liveText.length,
@@ -199,13 +199,13 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
   } else {
     liveText = getLiveInputText();
     console.log(
-      '[PII Shield][main] tokenizeOutgoingBody: no recent captured text - falling back to a live DOM read, length',
+      '[Nistar][main] tokenizeOutgoingBody: no recent captured text - falling back to a live DOM read, length',
       liveText?.length ?? 0,
     );
   }
   if (!liveText || !liveText.trim()) {
     console.warn(
-      '[PII Shield][main] tokenizeOutgoingBody: no live input text found (DOM read empty AND no recent captured text) - passing body through UNCHANGED.',
+      '[Nistar][main] tokenizeOutgoingBody: no live input text found (DOM read empty AND no recent captured text) - passing body through UNCHANGED.',
     );
     return bodyText;
   }
@@ -219,10 +219,10 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
   } catch {
     bodyContainsLiveText = bodyText.includes(liveText);
   }
-  console.log('[PII Shield][main] tokenizeOutgoingBody: bodyContainsLiveText =', bodyContainsLiveText);
+  console.log('[Nistar][main] tokenizeOutgoingBody: bodyContainsLiveText =', bodyContainsLiveText);
   if (!bodyContainsLiveText) {
     console.warn(
-      '[PII Shield][main] tokenizeOutgoingBody: the live/captured input text does NOT appear anywhere in this specific outgoing request body - passing through UNCHANGED. This request body was probably not the message-send request.',
+      '[Nistar][main] tokenizeOutgoingBody: the live/captured input text does NOT appear anywhere in this specific outgoing request body - passing through UNCHANGED. This request body was probably not the message-send request.',
     );
     return bodyText;
   }
@@ -231,7 +231,7 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
   if (usedCapturedFallback) capturedInputText = null;
 
   const response = await requestTokenization(liveText);
-  console.log('[PII Shield][main] tokenizeOutgoingBody: tokenization response from isolated world:', response);
+  console.log('[Nistar][main] tokenizeOutgoingBody: tokenization response from isolated world:', response);
   if (parsedJson !== undefined) {
     const { changed, value } = deepReplaceExactString(parsedJson, liveText, response.tokenizedText);
     if (changed) return JSON.stringify(value);
@@ -242,7 +242,7 @@ async function tokenizeOutgoingBody(bodyText: string): Promise<string> {
 const originalFetch = window.fetch;
 window.fetch = async function patchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-  console.log('[PII Shield][main] fetch() intercepted:', {
+  console.log('[Nistar][main] fetch() intercepted:', {
     url,
     method: init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET'),
     bodyType: init ? typeof init.body : typeof (input as Request)?.body,
@@ -253,7 +253,7 @@ window.fetch = async function patchedFetch(input: RequestInfo | URL, init?: Requ
     return originalFetch(input, { ...init, body: tokenizedBody });
   }
   console.warn(
-    '[PII Shield][main] fetch() body is not a plain string (or no init.body) - this request was NOT checked. If this is the chat send request, the body construction (e.g. Request object, streaming body, FormData) is not covered by the current interception logic.',
+    '[Nistar][main] fetch() body is not a plain string (or no init.body) - this request was NOT checked. If this is the chat send request, the body construction (e.g. Request object, streaming body, FormData) is not covered by the current interception logic.',
   );
   return originalFetch(input, init);
 };
@@ -263,7 +263,7 @@ XMLHttpRequest.prototype.send = function patchedSend(
   this: XMLHttpRequest,
   body?: Document | XMLHttpRequestBodyInit | null,
 ) {
-  console.log('[PII Shield][main] XMLHttpRequest.send() intercepted:', {
+  console.log('[Nistar][main] XMLHttpRequest.send() intercepted:', {
     bodyType: typeof body,
     bodyIsString: typeof body === 'string',
   });
@@ -271,7 +271,7 @@ XMLHttpRequest.prototype.send = function patchedSend(
     tokenizeOutgoingBody(body)
       .then((tokenizedBody) => OriginalXHRSend.call(this, tokenizedBody))
       .catch((err) => {
-        console.error('[PII Shield][main] blocked outgoing XHR request, tokenization failed', err);
+        console.error('[Nistar][main] blocked outgoing XHR request, tokenization failed', err);
       });
     return;
   }

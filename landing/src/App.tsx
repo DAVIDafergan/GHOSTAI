@@ -1,15 +1,14 @@
-// Configurable so the operator can point this at a real support/sales
-// address per deployment without a code change - falls back to a clearly
-// placeholder-looking address so it's obvious this needs to be set for
-// real before the page is shown to actual prospects (see BUILD_LOG.md).
-const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'contact@example.com';
-const DEMO_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('בקשת דמו - PII Shield')}`;
+// Temporary contact address until a real domain/mailbox is registered for
+// the chosen name (see BUILD_LOG.md) - still overridable via
+// VITE_CONTACT_EMAIL per deployment without a code change once that exists.
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || 'DA@101.ORG.IL';
+const DEMO_MAILTO = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('בקשת דמו - Nistar')}`;
 
 function Nav() {
   return (
     <header className="border-b border-gray-100">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <span className="text-lg font-bold text-indigo-700">PII Shield</span>
+        <span className="text-lg font-bold text-indigo-700">Nistar</span>
         <a href={DEMO_MAILTO} className="btn-primary">
           בקשת דמו
         </a>
@@ -30,7 +29,7 @@ function Hero() {
         מה קורה כשהם מדביקים שם פרטי לקוח?
       </h1>
       <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600">
-        PII Shield חוסמת מידע רגיש - שמות, מספרי תעודת זהות, פרטי תיקים ועוד - לפני שהוא יוצא
+        Nistar חוסמת מידע רגיש - שמות, מספרי תעודת זהות, פרטי תיקים ועוד - לפני שהוא יוצא
         מהדפדפן אל ChatGPT, Claude או Gemini. בזמן אמת, בלי להאט את העבודה השוטפת.
       </p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -187,7 +186,7 @@ function Footer() {
   return (
     <footer className="border-t border-gray-100 py-8">
       <div className="mx-auto max-w-6xl px-6 text-center text-sm text-gray-400">
-        © {new Date().getFullYear()} PII Shield. כל הזכויות שמורות.
+        © {new Date().getFullYear()} Nistar. כל הזכויות שמורות.
       </div>
     </footer>
   );

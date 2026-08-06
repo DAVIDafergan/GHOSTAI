@@ -1,4 +1,4 @@
-# PII Shield Extension
+# Nistar Extension
 
 Chrome Extension (Manifest V3) that intercepts text before it's sent to
 ChatGPT/Claude/Gemini, replaces company-sensitive values with tokens, and

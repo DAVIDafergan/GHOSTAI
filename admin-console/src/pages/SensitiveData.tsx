@@ -228,7 +228,7 @@ export function SensitiveData() {
         <div className="card max-w-lg">
           <h2 className="mb-2 text-sm font-semibold text-gray-700">חיבור ל-connector</h2>
           <p className="mb-4 text-sm text-gray-600">
-            הכרטיסייה הזו מתחברת <b>ישירות</b> ל-connector שרץ אצלכם ברשת - לא דרך שרת PII Shield המרכזי,
+            הכרטיסייה הזו מתחברת <b>ישירות</b> ל-connector שרץ אצלכם ברשת - לא דרך שרת Nistar המרכזי,
             שלעולם לא רואה ערכים גולמיים. הזינו את הכתובת שבה ה-connector נגיש מהדפדפן הזה (למשל{' '}
             <code dir="ltr">http://localhost:4100</code>).
           </p>

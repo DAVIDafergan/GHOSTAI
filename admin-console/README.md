@@ -1,6 +1,6 @@
-# PII Shield Admin Console
+# Nistar Admin Console
 
-React + Vite + Tailwind SPA for managing a PII Shield company: onboarding,
+React + Vite + Tailwind SPA for managing a Nistar company: onboarding,
 employees, dashboard, and sensitivity settings.
 
 ## Auth model
@@ -11,7 +11,7 @@ company's `apiKey` - the same credential the Connector uses - stored in
 `localStorage` after either completing the onboarding wizard or (not yet
 built) a "sign in with an existing apiKey" screen. Creating a *new* company
 (onboarding step 1) additionally requires the operator's
-`ADMIN_BOOTSTRAP_SECRET`, since company creation is gated to the PII Shield
+`ADMIN_BOOTSTRAP_SECRET`, since company creation is gated to the Nistar
 operator, not self-serve - see BUILD_LOG.md for why this was kept as-is
 from Week 1 rather than building a full multi-user login system.
 

@@ -30,7 +30,7 @@ export function Login() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-8" dir="rtl">
-      <h1 className="mb-1 text-2xl font-bold text-indigo-700">PII Shield - Super Admin</h1>
+      <h1 className="mb-1 text-2xl font-bold text-indigo-700">Nistar - Super Admin</h1>
       <p className="mb-6 text-sm text-gray-500">
         גישה למפעיל המערכת בלבד - לא למנהלי חברות. הסוד כאן הוא ADMIN_BOOTSTRAP_SECRET, לא apiKey של אף חברה.
       </p>

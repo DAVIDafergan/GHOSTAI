@@ -18,7 +18,7 @@ export function renderBadge(): void {
     boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
     pointerEvents: 'none',
   });
-  badgeEl.textContent = 'PII Shield active';
+  badgeEl.textContent = 'Nistar active';
   document.documentElement.appendChild(badgeEl);
 }
 
@@ -27,11 +27,11 @@ export function updateBadge(state: { failSafe: boolean; hiddenCount?: number }):
   if (!badgeEl) return;
   if (state.failSafe) {
     badgeEl.textContent =
-      'PII Shield: לא ניתן לאמת מול רשימת החברה כרגע, הופעלה הגנה בסיסית בלבד';
+      'Nistar: לא ניתן לאמת מול רשימת החברה כרגע, הופעלה הגנה בסיסית בלבד';
     badgeEl.style.background = '#b45309';
   } else if (state.hiddenCount !== undefined) {
     badgeEl.textContent =
-      state.hiddenCount > 0 ? `PII Shield: ${state.hiddenCount} פריטים הוסתרו בהודעה זו` : 'PII Shield active';
+      state.hiddenCount > 0 ? `Nistar: ${state.hiddenCount} פריטים הוסתרו בהודעה זו` : 'Nistar active';
     badgeEl.style.background = '#1f2937';
   }
 }

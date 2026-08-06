@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "PII Shield",
+  "name": "Nistar",
   "version": "0.1.0",
   "description": "Prevents company-sensitive data from reaching ChatGPT/Claude/Gemini by tokenizing it before it leaves the browser.",
   "permissions": ["storage", "activeTab"],

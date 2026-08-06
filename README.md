@@ -1,4 +1,4 @@
-# PII Shield
+# Nistar
 
 **Stops employees from leaking client-sensitive data into ChatGPT, Claude,
 and Gemini - without slowing anyone down, and without the vendor ever
@@ -7,7 +7,7 @@ seeing the sensitive data itself.**
 Employees increasingly paste real work into AI chat tools to draft, summarize,
 or translate it - including client names, ID numbers, case details, and
 other information an organization has a legal or contractual duty to
-protect. PII Shield intercepts that in the browser, in real time, and
+protect. Nistar intercepts that in the browser, in real time, and
 either blocks it or replaces it with a safe placeholder before it ever
 leaves the employee's machine.
 
@@ -28,7 +28,7 @@ leaves the employee's machine.
    backend is ever unreachable, it fails *closed* (blocks more, never
    less) rather than silently letting everything through.
 
-The result: even a full breach of PII Shield's own infrastructure exposes
+The result: even a full breach of Nistar's own infrastructure exposes
 hashes, not customer data. See [`SECURITY.md`](SECURITY.md) for the full
 threat model, including its honestly-stated limitations.
 

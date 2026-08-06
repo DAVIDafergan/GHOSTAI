@@ -1,5 +1,5 @@
 // Entirely separate auth from the per-company admin-console: this app
-// authenticates as the PII Shield operator via ADMIN_BOOTSTRAP_SECRET, not
+// authenticates as the Nistar operator via ADMIN_BOOTSTRAP_SECRET, not
 // any company's apiKey. Own localStorage key so there's no chance of
 // cross-contamination even if both apps are somehow open in the same
 // browser (different origins in production anyway - separate Railway

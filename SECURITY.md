@@ -1,4 +1,4 @@
-# PII Shield - Security Model
+# Nistar - Security Model
 
 Short version: **the central backend never sees raw sensitive values.**
 Everything it stores is a one-way hash.
@@ -36,7 +36,7 @@ consideration for something like a 9-digit ID number with a known checksum
 values momentarily while reading the customer's own data source) or the
 *browser extension* (which holds the salt and, transiently, the raw values
 of whatever it just matched, in that tab's memory only). Those run inside
-the customer's own network/browser, which is outside PII Shield's own
+the customer's own network/browser, which is outside Nistar's own
 threat model - protecting the central operator's infrastructure from being
 a single point of catastrophic leakage across all customers is the actual
 goal, not full end-to-end secrecy from every possible attacker.
@@ -50,7 +50,7 @@ goal, not full end-to-end secrecy from every possible attacker.
   low-entropy passwords - unlike a password hash, there's no need for a slow
   KDF, and a fast hash allows indexed lookup by hash).
 - `ADMIN_BOOTSTRAP_SECRET` gates creating new tenant companies; it's known
-  only to the PII Shield operator, not individual customers.
+  only to the Nistar operator, not individual customers.
 
 ## Known limitations (honest, not hidden)
 

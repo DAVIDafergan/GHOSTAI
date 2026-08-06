@@ -1,15 +1,15 @@
-# PII Shield Connector
+# Nistar Connector
 
 Runs inside the customer's own network. Reads a configured data source
 (Postgres table or CSV file), normalizes and hashes each sensitive value
 locally with the company's `entitySalt`, and sends only those hashes to the
-PII Shield backend. Raw values never leave the network this runs in.
+Nistar backend. Raw values never leave the network this runs in.
 
 ## Configure
 
 Copy `config.example.json` to `connector.config.json` and fill in:
 
-- `backendUrl` — the PII Shield backend's URL
+- `backendUrl` — the Nistar backend's URL
 - `apiKey` — issued once when the company was created via `POST /admin/companies`
 - `source` — `postgres` (connection string + table + column→entityType
   mappings) or `csv` (file path + column→entityType mappings)

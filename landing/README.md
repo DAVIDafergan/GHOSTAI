@@ -1,4 +1,4 @@
-# PII Shield Landing Page
+# Nistar Landing Page
 
 Standalone marketing/informational page for first-time visitors - separate
 from `admin-console` (the product itself, which requires an `apiKey` to do

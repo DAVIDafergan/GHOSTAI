@@ -1,4 +1,4 @@
-# PII Shield Super Admin
+# Nistar Super Admin
 
 Separate, operator-only React app for creating and monitoring customer
 (company) accounts. Not something a customer ever sees or has access to -
@@ -8,7 +8,7 @@ way for the two trust boundaries to blur together.
 
 ## Auth model
 
-Authenticates as the PII Shield operator via `ADMIN_BOOTSTRAP_SECRET` -
+Authenticates as the Nistar operator via `ADMIN_BOOTSTRAP_SECRET` -
 the same secret that gates `POST /admin/companies` on the backend, not any
 individual company's `apiKey`. Stored in its own `localStorage` key
 (`piiShieldSuperAdminSession`), separate from `admin-console`'s, so the two

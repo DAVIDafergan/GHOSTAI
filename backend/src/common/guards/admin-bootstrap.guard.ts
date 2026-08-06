@@ -10,7 +10,7 @@ function safeCompare(a: string, b: string): boolean {
 
 /**
  * Gates operator-only endpoints (creating a new tenant company) behind a
- * shared secret known only to the PII Shield operator, not tenant admins.
+ * shared secret known only to the Nistar operator, not tenant admins.
  */
 @Injectable()
 export class AdminBootstrapGuard implements CanActivate {

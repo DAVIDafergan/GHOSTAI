@@ -1,4 +1,4 @@
-# PII Shield Backend
+# Nistar Backend
 
 NestJS + PostgreSQL (Prisma). Multi-tenant: stores only entity *hashes*
 (never raw values), issues per-company/per-employee credentials, and serves
@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and fill in:
 |---|---|
 | `DATABASE_URL` | Postgres connection string |
 | `JWT_SECRET` | reserved, not currently used - see "Auth model" below for what's actually in place |
-| `ADMIN_BOOTSTRAP_SECRET` | shared secret gating `POST /admin/companies` (creating a new tenant) - known only to the PII Shield operator, not customers |
+| `ADMIN_BOOTSTRAP_SECRET` | shared secret gating `POST /admin/companies` (creating a new tenant) - known only to the Nistar operator, not customers |
 | `PORT` | defaults to 3000 |
 
 ## Run

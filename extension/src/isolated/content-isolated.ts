@@ -12,7 +12,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 // permissions, remote-debugging tools, screen-share/support sessions,
 // etc.), not just never leave the browser entirely. The *tokenized*
 // output is safe to log - by definition it's already had any PII replaced.
-console.log('[PII Shield][isolated] content-isolated.ts loaded on', location.href);
+console.log('[Nistar][isolated] content-isolated.ts loaded on', location.href);
 
 const tokenStore = new TokenStore();
 let storeState: EntityStoreState = {
@@ -27,7 +27,7 @@ let storeState: EntityStoreState = {
 
 async function refreshEntityStore(): Promise<void> {
   storeState = await loadEntityStore();
-  console.log('[PII Shield][isolated] entity store refreshed:', {
+  console.log('[Nistar][isolated] entity store refreshed:', {
     failSafe: storeState.failSafe,
     entityCount: storeState.entityIndex.size,
     confidenceThreshold: storeState.confidenceThreshold,
@@ -36,7 +36,7 @@ async function refreshEntityStore(): Promise<void> {
   });
   if (storeState.failSafe) {
     console.warn(
-      '[PII Shield][isolated] running in FAIL-SAFE mode - either no config saved yet (open the extension popup/options and connect), or the backend fetch failed (check Network tab for a request to <backendUrl>/employees/me and see what it returned).',
+      '[Nistar][isolated] running in FAIL-SAFE mode - either no config saved yet (open the extension popup/options and connect), or the backend fetch failed (check Network tab for a request to <backendUrl>/employees/me and see what it returned).',
     );
   }
   updateBadge({ failSafe: storeState.failSafe });
@@ -57,7 +57,7 @@ function reportBlockedEntities(entityTypes: string[]): void {
 }
 
 async function handleTokenizeRequest(data: TokenizeRequestMessage): Promise<void> {
-  console.log('[PII Shield][isolated] tokenize request received:', {
+  console.log('[Nistar][isolated] tokenize request received:', {
     id: data.id,
     textLength: data.text.length,
     mode: storeState.failSafe ? 'fail-safe (regex-only)' : 'full (regex + company entity list)',
@@ -74,7 +74,7 @@ async function handleTokenizeRequest(data: TokenizeRequestMessage): Promise<void
         enabledEntityTypes: storeState.enabledEntityTypes,
       });
 
-  console.log('[PII Shield][isolated] tokenize result:', {
+  console.log('[Nistar][isolated] tokenize result:', {
     hiddenCount: result.hiddenCount,
     hiddenEntityTypes: result.hiddenEntityTypes,
     failSafe: result.failSafe,

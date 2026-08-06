@@ -109,7 +109,7 @@ export function Dashboard() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-8" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-indigo-700">PII Shield - Super Admin</h1>
+        <h1 className="text-xl font-bold text-indigo-700">Nistar - Super Admin</h1>
         <button onClick={logout} className="btn-secondary text-sm">
           התנתקות
         </button>

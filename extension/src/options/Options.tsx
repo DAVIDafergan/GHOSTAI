@@ -14,7 +14,7 @@ export function Options() {
         direction: 'rtl',
       }}
     >
-      <h1 style={{ fontSize: 20, marginBottom: 4 }}>הגדרות PII Shield</h1>
+      <h1 style={{ fontSize: 20, marginBottom: 4 }}>הגדרות Nistar</h1>
       <p style={{ fontSize: 13, color: '#666', marginBottom: 20 }}>
         עמוד זה, בניגוד לחלונית הקופצת, נשאר פתוח במעבר בין טאבים - נוח יותר להדבקת כתובת שרת או קוד
         התקנה ארוכים.
@@ -36,7 +36,7 @@ export function Options() {
           }}
         />
         <p style={{ fontSize: 12, color: '#888', marginTop: 0, marginBottom: 16 }}>
-          כתובת שרת ה-PII Shield של החברה שלכם. קיבלתם אותה ממנהל המערכת אצלכם יחד עם קוד ההתקנה.
+          כתובת שרת ה-Nistar של החברה שלכם. קיבלתם אותה ממנהל המערכת אצלכם יחד עם קוד ההתקנה.
         </p>
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>

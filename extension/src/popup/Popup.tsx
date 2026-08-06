@@ -6,7 +6,7 @@ export function Popup() {
 
   return (
     <div style={{ width: 280, padding: 16, fontFamily: 'system-ui, sans-serif', direction: 'rtl' }}>
-      <h2 style={{ fontSize: 16, marginBottom: 8 }}>PII Shield</h2>
+      <h2 style={{ fontSize: 16, marginBottom: 8 }}>Nistar</h2>
       <form onSubmit={handleSave}>
         <label style={{ display: 'block', fontSize: 12, marginBottom: 4 }}>כתובת שרת</label>
         <input

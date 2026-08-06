@@ -4,5 +4,5 @@
 // worker context (useful for automated testing and future features like
 // install/update notifications).
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('PII Shield installed');
+  console.log('Nistar installed');
 });

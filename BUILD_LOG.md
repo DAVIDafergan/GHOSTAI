@@ -1438,3 +1438,68 @@ every component's own `README.md`, `docker-compose.dev.yml`,
 `backend/.env.example`, `connector/config.example.json`) really exists on
 disk, rather than assuming.
 
+## Name decided: Nistar (נסתר)
+
+The user chose **Nistar** (Hebrew: נסתר, "hidden/concealed") - not one of
+the 5 candidates proposed under item 7, their own choice, which is exactly
+what that section was for. Fits the product well: the whole architecture
+is built around the central system never seeing the customer's actual
+data, only a hash of it - "hidden" is a fair one-word summary of the
+entire security model.
+
+**Railway backup infrastructure, set up ahead of this deploy per explicit
+request**: created a dedicated volume (`backend-volume`, `Ready`, mounted
+at `/data/backups`) attached to the `backend` service, separate from
+`postgres-volume` as designed, and set `BACKUP_DIR=/data/backups` on
+`backend` with `--skip-deploys` (so it doesn't trigger a wasted redeploy of
+the currently-live, pre-backup-feature code - it'll simply already be in
+place the next time `backend` actually redeploys). Note: `railway volume
+add` (the CLI subcommand) crashed with a Rust panic
+(`Option::unwrap() on a None value`, `volume.rs:836`) in this environment,
+on CLI v5.30.4, reproducibly, with or without `--json`/`--environment`,
+even after `railway upgrade`. Worked around it via the GraphQL API
+directly (`railway api`) using the `volumeCreate` mutation - same
+approach already used earlier to inspect/attempt the (paid-plan-gated)
+native backup schedule. Verified via `railway volume list` (shows
+`backend-volume` at `/data/backups`, attached to `backend`, `Ready`) and
+`railway variable list --service backend --kv` (shows `BACKUP_DIR=/data/backups`
+and the `RAILWAY_VOLUME_*` vars Railway auto-injects once a volume is
+attached) - both confirmed correct before reporting back.
+
+**Applied the name across every genuinely user-facing surface** (not a
+proposal anymore - this is the user's actual decision, now in the code):
+`landing/`, `admin-console/` (page title/meta, header, onboarding copy,
+sensitive-data tab copy), `super-admin/` (page title/meta, dashboard
+header, login copy), the extension (`manifest.json`'s `name` - this is
+literally what Chrome shows in `chrome://extensions` and would show in
+the Web Store listing - `options.html`/`popup.html` titles, the in-page
+badge text shown directly on ChatGPT/Claude/Gemini tabs, and the
+`console.log('[Nistar]...')` diagnostic prefixes for consistency), plus
+the top-level `README.md` and `SECURITY.md` and every component's own
+`README.md`. Deliberately left unrenamed (historical/internal, not
+customer-facing): `BUILD_LOG.md` (rewriting past dated entries would be
+revisionist, not useful), `PII-Shield-Spec.md` (the original foundational
+spec artifact), `backend/test/pii-shield.e2e-spec.ts`'s filename, and the
+connector's internal `package.json`/CLI command name (a workspace-internal
+identifier, not shown to any customer). The `PII_SHIELD_REQUEST`/
+`PII_SHIELD_RESPONSE` postMessage protocol constants in
+`extension/src/shared/messages.ts` were also deliberately left alone - an
+internal cross-script protocol identifier, not user-facing text, and
+renaming it is pure risk (a typo could silently break the main-world/
+isolated-world message contract) for zero user-visible benefit.
+
+**Landing page contact email**: updated to `DA@101.ORG.IL`, explicitly
+described by the user as temporary until a real domain/mailbox exists for
+the chosen name. Set as the new default in `App.tsx`'s `CONTACT_EMAIL`
+fallback (still overridable via `VITE_CONTACT_EMAIL` once a real address
+exists) and in `landing/.env.example`.
+
+**Tested**: `tsc --noEmit` clean across all 5 packages (backend,
+admin-console, super-admin, landing, extension); full backend suite green
+(5 unit + 31 e2e = 36); all 4 frontend packages rebuild clean; extension's
+real-Chromium Playwright e2e suite re-run and both scenarios still pass
+(the rename touched UI copy and log strings only, not tokenization logic).
+Took a fresh full-page screenshot of the built landing page to visually
+confirm the new name and contact address actually render, not just that
+the source diff looks right.
+
