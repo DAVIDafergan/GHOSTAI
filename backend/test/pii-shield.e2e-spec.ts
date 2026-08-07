@@ -276,10 +276,15 @@ describe('PII Shield backend (e2e)', () => {
     const settingsRes = await request(app.getHttpServer())
       .patch('/companies/me')
       .set('x-api-key', apiKey)
-      .send({ confidenceThreshold: 75, enabledEntityTypes: ['name', 'email'] })
+      .send({
+        confidenceThreshold: 75,
+        enabledEntityTypes: ['name', 'email'],
+        connectorAdminUrl: 'http://localhost:4100',
+      })
       .expect(200);
     expect(settingsRes.body.confidenceThreshold).toBe(75);
     expect(settingsRes.body.enabledEntityTypes).toEqual(['name', 'email']);
+    expect(settingsRes.body.connectorAdminUrl).toBe('http://localhost:4100');
 
     const meRes = await request(app.getHttpServer())
       .get('/companies/me')
@@ -287,6 +292,16 @@ describe('PII Shield backend (e2e)', () => {
       .expect(200);
     expect(meRes.body.confidenceThreshold).toBe(75);
     expect(meRes.body.enabledEntityTypes).toEqual(['name', 'email']);
+    // Proves the connector's admin URL actually persists server-side (not
+    // just echoed back from the PATCH response) - a fresh GET, as a
+    // different browser/device with no localStorage would do, still sees it.
+    expect(meRes.body.connectorAdminUrl).toBe('http://localhost:4100');
+
+    await request(app.getHttpServer())
+      .patch('/companies/me')
+      .set('x-api-key', apiKey)
+      .send({ connectorAdminUrl: 'not-a-url' })
+      .expect(400);
 
     await prisma.auditLog.deleteMany({ where: { companyId } });
     await prisma.employee.deleteMany({ where: { companyId } });

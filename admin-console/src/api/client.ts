@@ -79,6 +79,7 @@ export interface Company {
   entitySalt?: string;
   confidenceThreshold: number;
   enabledEntityTypes: string[];
+  connectorAdminUrl?: string | null;
 }
 
 export interface EmployeeSummary {
@@ -153,8 +154,10 @@ export const api = {
 
   getCompany: (session: Session) => request<Company>(session, '/companies/me'),
 
-  updateSettings: (session: Session, settings: { confidenceThreshold?: number; enabledEntityTypes?: string[] }) =>
-    request<Company>(session, '/companies/me', { method: 'PATCH', body: JSON.stringify(settings) }),
+  updateSettings: (
+    session: Session,
+    settings: { confidenceThreshold?: number; enabledEntityTypes?: string[]; connectorAdminUrl?: string },
+  ) => request<Company>(session, '/companies/me', { method: 'PATCH', body: JSON.stringify(settings) }),
 
   listEmployees: (session: Session) => request<EmployeeSummary[]>(session, '/employees'),
 

@@ -5,6 +5,7 @@ build/
 .env.*
 !.env.example
 connector.config.json
+connector-state.json
 *.log
 .DS_Store
 coverage/

@@ -16,6 +16,13 @@ model Company {
   status        String   @default("active") // "active" | "pending_deletion"
   confidenceThreshold Int @default(50)
   enabledEntityTypes String[] @default(["name", "id_number", "case_number", "amount", "email", "phone"])
+  // Where the admin console reaches this company's connector's own local
+  // HTTP API from the browser (e.g. http://192.168.1.50:4100) - not a
+  // secret, just network topology, so storing it centrally (rather than
+  // per-browser in localStorage) is fine and is what makes it survive a
+  // different device/browser/cache-clear instead of being asked for again
+  // every time. See BUILD_LOG.md.
+  connectorAdminUrl String?
   deletedAt     DateTime?
   createdAt     DateTime @default(now())
 

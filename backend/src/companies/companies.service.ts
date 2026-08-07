@@ -94,7 +94,10 @@ export class CompaniesService {
     });
   }
 
-  updateSettings(companyId: string, settings: { confidenceThreshold?: number; enabledEntityTypes?: string[] }) {
+  updateSettings(
+    companyId: string,
+    settings: { confidenceThreshold?: number; enabledEntityTypes?: string[]; connectorAdminUrl?: string },
+  ) {
     return this.prisma.company.update({
       where: { id: companyId },
       data: settings,

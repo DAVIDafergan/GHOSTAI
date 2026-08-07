@@ -1,21 +1,13 @@
 // Talks DIRECTLY to a connector running inside the customer's own network -
 // never through the central backend, which by design only ever sees entity
-// hashes (see SECURITY.md). The connector URL is a "reach into my own
-// local/private network" detail specific to this browser/admin, so it's
-// kept in localStorage only, never sent to or stored by the central
-// backend.
-const CONNECTOR_URL_KEY = 'piiShieldConnectorUrl';
-
-export function loadConnectorUrl(): string | null {
-  return localStorage.getItem(CONNECTOR_URL_KEY);
-}
-
-export function saveConnectorUrl(url: string): void {
-  localStorage.setItem(CONNECTOR_URL_KEY, url.trim().replace(/\/$/, ''));
-}
-
-export function clearConnectorUrl(): void {
-  localStorage.removeItem(CONNECTOR_URL_KEY);
+// hashes (see SECURITY.md). The connector's URL itself isn't sensitive
+// (network topology, not PII), so it's stored centrally per-company
+// (Company.connectorAdminUrl, via PATCH /companies/me) rather than in this
+// browser's localStorage - that's what lets it survive a different device,
+// a different browser, or a cleared cache instead of asking again every
+// time. See BUILD_LOG.md.
+export function normalizeConnectorUrl(url: string): string {
+  return url.trim().replace(/\/$/, '');
 }
 
 export interface ConnectorEntity {

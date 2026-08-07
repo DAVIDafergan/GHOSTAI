@@ -238,6 +238,20 @@ describe('Cross-tenant authorization (e2e)', () => {
     expect(meB.body.company.entitySalt).not.toBe(meCompanyA.body.entitySalt);
   });
 
+  it("settings: A's connectorAdminUrl is never visible to B, and vice versa", async () => {
+    await request(app.getHttpServer())
+      .patch('/companies/me')
+      .set('x-api-key', companyAApiKey)
+      .send({ connectorAdminUrl: 'http://a-connector.internal:4100' })
+      .expect(200);
+
+    const meB = await request(app.getHttpServer())
+      .get('/companies/me')
+      .set('x-api-key', companyBApiKey)
+      .expect(200);
+    expect(meB.body.connectorAdminUrl).not.toBe('http://a-connector.internal:4100');
+  });
+
   it("health-check: B's latest check is never A's", async () => {
     await request(app.getHttpServer()).post('/health-check/run').set('x-api-key', companyAApiKey).expect(201);
     const res = await request(app.getHttpServer())

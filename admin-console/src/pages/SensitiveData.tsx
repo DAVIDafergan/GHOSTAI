@@ -1,25 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useSession } from '../context/SessionContext';
-import {
-  connectorApi,
-  ConnectorApiError,
-  ConnectorEntity,
-  ConnectorHealth,
-  loadConnectorUrl,
-  saveConnectorUrl,
-} from '../api/connectorClient';
+import { api, ApiError } from '../api/client';
+import { connectorApi, ConnectorApiError, ConnectorEntity, ConnectorHealth, normalizeConnectorUrl } from '../api/connectorClient';
 import { ENTITY_TYPE_LABELS, ALL_ENTITY_TYPES } from '../entityTypes';
 import { COLORS } from '../colors';
 
-type ConnectionState = 'checking' | 'unreachable' | 'connected' | 'unset';
+type ConnectionState = 'loading' | 'checking' | 'unreachable' | 'connected' | 'unset';
 
 export function SensitiveData() {
   const { session } = useSession();
-  const [connectorUrl, setConnectorUrl] = useState(loadConnectorUrl() ?? '');
-  const [urlInput, setUrlInput] = useState(connectorUrl);
-  const [state, setState] = useState<ConnectionState>(connectorUrl ? 'checking' : 'unset');
+  const [connectorUrl, setConnectorUrl] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [state, setState] = useState<ConnectionState>('loading');
   const [health, setHealth] = useState<ConnectorHealth | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [entities, setEntities] = useState<ConnectorEntity[]>([]);
   const [total, setTotal] = useState(0);
@@ -55,6 +51,32 @@ export function SensitiveData() {
     }
   }
 
+  // The connector's URL lives on the company itself (Company.connectorAdminUrl),
+  // not this browser's localStorage - so it survives a different device/
+  // browser/cache-clear, and only falls back to asking again if the saved
+  // URL turns out to be genuinely unreachable (handled below via checkConnection).
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const company = await api.getCompany(session);
+        if (cancelled) return;
+        const saved = company.connectorAdminUrl ?? '';
+        setConnectorUrl(saved);
+        setUrlInput(saved);
+        setState(saved ? 'checking' : 'unset');
+      } catch {
+        if (cancelled) return;
+        setState('unset');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (connectorUrl) checkConnection(connectorUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,10 +108,20 @@ export function SensitiveData() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, entityType, search, status, since]);
 
-  function handleSaveUrl(e: React.FormEvent) {
+  async function handleSaveUrl(e: React.FormEvent) {
     e.preventDefault();
-    saveConnectorUrl(urlInput);
-    setConnectorUrl(urlInput.trim().replace(/\/$/, ''));
+    if (!session) return;
+    setSaveError(null);
+    setSaving(true);
+    const normalized = normalizeConnectorUrl(urlInput);
+    try {
+      await api.updateSettings(session, { connectorAdminUrl: normalized });
+      setConnectorUrl(normalized);
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'שגיאה בשמירת הכתובת');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function refreshHealth() {
@@ -221,6 +253,15 @@ export function SensitiveData() {
     await Promise.all([loadEntities(), refreshHealth()]);
   }
 
+  if (state === 'loading') {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-bold">מידע רגיש</h1>
+        <p className="text-sm text-gray-500">טוען...</p>
+      </div>
+    );
+  }
+
   if (state === 'unset') {
     return (
       <div className="space-y-6">
@@ -230,7 +271,8 @@ export function SensitiveData() {
           <p className="mb-4 text-sm text-gray-600">
             הכרטיסייה הזו מתחברת <b>ישירות</b> ל-connector שרץ אצלכם ברשת - לא דרך שרת Nistar המרכזי,
             שלעולם לא רואה ערכים גולמיים. הזינו את הכתובת שבה ה-connector נגיש מהדפדפן הזה (למשל{' '}
-            <code dir="ltr">http://localhost:4100</code>).
+            <code dir="ltr">http://localhost:4100</code>). הכתובת תישמר עבור החברה שלכם - לא תצטרכו להזין
+            אותה שוב בכניסה הבאה, אלא אם החיבור בפועל ייכשל.
           </p>
           <form onSubmit={handleSaveUrl} className="flex gap-2">
             <input
@@ -240,10 +282,11 @@ export function SensitiveData() {
               onChange={(e) => setUrlInput(e.target.value)}
               required
             />
-            <button type="submit" className="btn-primary shrink-0">
-              התחבר
+            <button type="submit" className="btn-primary shrink-0" disabled={saving}>
+              {saving ? 'שומר...' : 'התחבר'}
             </button>
           </form>
+          {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
         </div>
       </div>
     );

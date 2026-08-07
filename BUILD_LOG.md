@@ -1607,3 +1607,122 @@ established throughout this whole session exists to catch - a passing
 test suite here would have shipped a super-admin app that could never
 actually log in.
 
+## Fixed: connector URL "forgets" itself on reload (sensitive-data tab)
+
+Reported bug: the admin-console's "מידע רגיש" (sensitive data) tab, which
+talks directly to a company's connector, asks for the connector's URL
+again on every reload even after a successful connection.
+
+**Investigation first, not an assumed fix**: read `SensitiveData.tsx`'s
+state machine carefully - `state` only ever becomes `'unset'` (the
+input-form screen) at initial mount if `loadConnectorUrl()` (localStorage)
+returns empty, or via the explicit "שנה כתובת connector" button. A failed
+connection lands on `'unreachable'` (an error+retry screen), never back on
+`'unset'` automatically. Reproduced against a real connector daemon (CSV
+source, local HTTP API on `apiPort`) and real backend: with localStorage
+intact, a genuine page reload correctly showed "מחובר" (connected), not
+the input form - the code was doing what it looked like it should do.
+
+So the actual bug isn't in the state machine - it's the *storage
+mechanism* itself. `piiShieldConnectorUrl` was a single global localStorage
+key: browser-and-device-specific (never persists across a different
+browser, a different device, or a cleared cache - exactly the kind of
+thing an admin would hit switching machines or clearing site data) and
+**not scoped per company** (an admin managing more than one customer from
+the same browser would have company B's connector URL stomped by whatever
+company A last saved, and vice versa - a real latent bug beyond what was
+reported).
+
+**Fix**: moved it server-side, scoped per company - `Company.connectorAdminUrl`
+(new nullable column, migration `20260807030000_add_company_connector_admin_url`),
+read/written via the existing `GET`/`PATCH /companies/me` endpoints (added
+to `UpdateSettingsDto` - deliberately not `@IsUrl()`, which rejects
+localhost/private-IP hosts by default and those are exactly what most
+connectors use; a plain `http(s)://` prefix check instead). This isn't a
+privacy exception to the hash-only-storage rule - a connector's *address*
+is network topology, not customer data, so storing it centrally is fine.
+`SensitiveData.tsx` now fetches the company's saved URL on mount instead
+of reading localStorage; `connectorClient.ts`'s `loadConnectorUrl`/
+`saveConnectorUrl`/`clearConnectorUrl` (localStorage-based, and
+`clearConnectorUrl` was already dead code - never called anywhere) removed
+entirely in favor of the existing `api.getCompany`/`api.updateSettings`
+calls the rest of the app already uses.
+
+**New tests**: extended the existing `PATCH /companies/me` e2e test to
+cover `connectorAdminUrl` round-tripping through a save + a *separate* GET
+(proving it's actually persisted server-side, not just echoed back) plus a
+validation-rejection case; added a cross-tenant test to
+`cross-tenant.e2e-spec.ts` confirming company A's saved URL is never
+visible to company B (this field gets the same tenant-scoping guarantee as
+everything else in `CurrentCompany()`-backed endpoints, but worth an
+explicit assertion given it's new).
+
+**Verified the actual fix, not just the code**: reproduced the original
+failure mode for real (fresh connector + company, connected successfully
+in one Playwright browser context, confirmed `localStorage` was empty for
+the old key - proving it's not being used anymore), then opened a
+*completely separate, brand-new browser context* - zero localStorage,
+simulating a genuinely different device - and confirmed it showed
+"מחובר" (connected) immediately, never the input form. This is the
+strongest form of proof available that it now actually survives what
+localStorage structurally couldn't, not just that the code path looks
+different.
+
+## Landing page redesign
+
+Feedback: the landing page looked generic and minimal - no real
+typography identity, no motion, didn't read as a real SaaS product. Asked
+to check for a `frontend-design` skill at `/mnt/skills/public/frontend-design/`
+first - that path (and `/mnt/skills/` entirely) doesn't exist in this
+environment, so this was done as direct design work instead, not skill-
+guided.
+
+**Typography**: added Heebo (Google Fonts, weights 300-900) as the base
+font - strong Hebrew *and* Latin support, wide weight range for real
+display-vs-body contrast, similar geometric register to what Inter/Söhne
+give Linear/Vercel. Hero headline went from a plain `text-4xl font-bold`
+to `text-5xl→7xl font-black` with a gradient-text treatment
+(`.gradient-text`, indigo→violet `bg-clip-text`) on the two key phrases
+("ChatGPT", "פרטי לקוח") - draws the eye to exactly what the product
+protects against, not just bigger-for-its-own-sake.
+
+**Motion**: added `framer-motion`. Hero content fades/slides up on load,
+staggered (badge → headline → subhead → CTAs → trust line) via a shared
+`fadeUp`/`stagger` variants pair. Every section below the fold uses
+`whileInView` with `once: true` so it animates in exactly once as it
+scrolls into view, not on every re-scroll. Buttons/cards get real hover
+states (translateY + shadow growth on cards via a rewritten `.card` class;
+buttons lift and gain a colored glow shadow on hover) - all via CSS
+transitions, not JS, so they stay smooth without re-render cost.
+
+**Visual hierarchy / depth**: added `lucide-react` for consistent line
+icons (previously: no icons anywhere, just text) - a colored icon badge
+per risk/audience item, a shield mark in the nav logo and the trust
+section. Hero and trust sections both got a subtle background treatment
+(a faint grid pattern masked to a radial fade, plus a soft blurred
+gradient blob) instead of flat white/`indigo-950` - the kind of restrained
+depth-without-clutter that reads as "designed," not "default." The 3-step
+"how it works" cards gained a connecting line between them (a common
+"process" visual) and their number badges became actual icon tiles
+instead of plain colored circles.
+
+**Real bug found in my own first test, not shipped**: my first full-page
+screenshot (`fullPage: true` after an instant `scrollTo(bottom)` then
+`scrollTo(0)`) showed several sections completely empty - no headline, no
+cards, just the background color. Before assuming the animation code was
+broken, redid the same capture with a *gradual*, stepped scroll (20 steps
+with pauses, simulating how a real user actually scrolls) - every section
+rendered exactly as designed. Root cause: an instant JS-triggered
+`scrollTo` jump doesn't reliably give the browser's `IntersectionObserver`
+a settled frame to fire on for elements it jumps over, so `whileInView`
+never triggered for them - a testing-methodology artifact, not a real
+bug a real scrolling user would ever hit. Documenting this because it's
+exactly the kind of thing that could have been misdiagnosed as "the
+animations are broken, remove whileInView" without checking the actual
+cause first.
+
+**Verified**: `tsc --noEmit` and `npm run build` both clean. Screenshot
+comparison (before/after) sent to the user. Confirmed hover states
+actually apply (card lift + shadow, button lift + color shift) via
+Playwright `.hover()` + screenshot, not just "the CSS looks right."
+

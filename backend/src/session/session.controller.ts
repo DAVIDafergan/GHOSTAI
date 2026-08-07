@@ -29,6 +29,7 @@ export class SessionController {
       entitySalt: company.entitySalt,
       confidenceThreshold: company.confidenceThreshold,
       enabledEntityTypes: company.enabledEntityTypes,
+      connectorAdminUrl: company.connectorAdminUrl,
     };
   }
 
@@ -41,6 +42,7 @@ export class SessionController {
       name: updated.name,
       confidenceThreshold: updated.confidenceThreshold,
       enabledEntityTypes: updated.enabledEntityTypes,
+      connectorAdminUrl: updated.connectorAdminUrl,
     };
   }
 
