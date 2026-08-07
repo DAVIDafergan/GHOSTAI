@@ -1,5 +1,5 @@
 import { TokenStore, tokenizeText } from '../shared/tokenizer';
-import { extractText } from './fileTextExtractor';
+import { detectFileKind, extractText } from './fileTextExtractor';
 import { showFileScanDialog, showFileScanFailedDialog } from './fileScanDialog';
 import type { EntityStoreState } from './entityStore';
 
@@ -87,18 +87,38 @@ function isFileInput(target: EventTarget | null): target is HTMLInputElement {
   return target instanceof HTMLInputElement && target.type === 'file';
 }
 
+/**
+ * Only PDF/DOCX/XLSX/XLS (whatever detectFileKind recognizes) are ever
+ * this feature's concern. Everything else - images, plain text, zips,
+ * anything - was never in scope and must be completely invisible to this
+ * feature: not scanned, not blocked, no "couldn't verify" dialog either.
+ * Filtering *before* deciding whether to intercept at all (not inside the
+ * scan step) is what makes that true - an unsupported file's extractText()
+ * throwing "Unsupported file type" is a real error, but only meaningful
+ * for a file we actually meant to scan; it must never reach that code
+ * path in the first place for a file outside the allowlist.
+ */
+function needsScanning(files: File[]): File[] {
+  return files.filter((f) => detectFileKind(f) !== null && !approvedFiles.has(f));
+}
+
 function handleFileInputChange(e: Event, getStore: () => EntityStoreState): void {
   const input = e.target;
   if (!isFileInput(input)) return;
   const files = input.files ? Array.from(input.files) : [];
   if (files.length === 0) return;
-  if (files.every((f) => approvedFiles.has(f))) return; // this is our own replay - let the page see it
+
+  const toScan = needsScanning(files);
+  if (toScan.length === 0) return; // nothing here is our concern - let the browser handle it entirely normally
 
   e.preventDefault();
   e.stopImmediatePropagation();
 
-  scanFiles(files, getStore).then((allApproved) => {
+  scanFiles(toScan, getStore).then((allApproved) => {
     if (!allApproved) return; // cancelled - input just keeps its current (unsent) selection
+    // Replay the FULL original selection, not just the subset we scanned -
+    // any unsupported files riding alongside a scanned one must go through
+    // unmodified too, exactly as if this feature never touched them.
     files.forEach((f) => approvedFiles.add(f));
     const dt = new DataTransfer();
     files.forEach((f) => dt.items.add(f));
@@ -111,13 +131,15 @@ function handleDrop(e: DragEvent, getStore: () => EntityStoreState): void {
   const dt = e.dataTransfer;
   if (!dt || dt.files.length === 0) return;
   const files = Array.from(dt.files);
-  if (files.every((f) => approvedFiles.has(f))) return;
+
+  const toScan = needsScanning(files);
+  if (toScan.length === 0) return;
 
   e.preventDefault();
   e.stopImmediatePropagation();
 
   const target = e.target;
-  scanFiles(files, getStore).then((allApproved) => {
+  scanFiles(toScan, getStore).then((allApproved) => {
     if (!allApproved || !target) return;
     files.forEach((f) => approvedFiles.add(f));
     const newDt = new DataTransfer();

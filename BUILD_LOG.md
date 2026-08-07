@@ -1941,3 +1941,46 @@ manual pass happens, this feature should be considered *code-complete and
 automated-test-verified*, not yet *confirmed against the real sites* -
 an honest distinction worth preserving rather than blurring.
 
+## Fixed: unsupported files (e.g. images) incorrectly showed a dialog
+
+User-reported, with a screenshot: uploading a `.jpeg` (never in scope -
+only PDF/DOCX/XLSX ever were) showed "לא ניתן היה לבדוק את הקובץ...
+Unsupported file type... לכן לא ניתן לאשר שאין בו מידע רגיש" and asked
+for confirmation to proceed. Wrong - an out-of-scope file must be
+completely invisible to this feature, not treated as "we tried and
+failed to verify it."
+
+**Root cause**: `fileUploadInterceptor.ts` intercepted (`preventDefault`
++ `stopImmediatePropagation`) *every* file selection unconditionally,
+then called `scanOneFile()` → `extractText()`, which throws
+`"Unsupported file type"` for anything `detectFileKind()` doesn't
+recognize. That throw landed in the same `catch` block used for genuine
+extraction failures (a corrupted/encrypted PDF), so "this file was never
+meant to be scanned" and "this file should have been scanned but
+couldn't be" were indistinguishable by the time the error handling ran -
+both showed the "couldn't verify" dialog.
+
+**Fix**: moved the filtering *before* the decision to intercept at all,
+not inside the scan step. New `needsScanning()` filters to only files
+`detectFileKind()` recognizes; if that list is empty, `handleFileInputChange`/
+`handleDrop` return immediately, before ever calling `preventDefault`/
+`stopImmediatePropagation` - the browser handles the selection completely
+normally, exactly as if this feature didn't exist. For a mixed selection
+(a supported file alongside an unsupported one), only the supported
+file(s) get scanned, but the *entire original selection* - both scanned
+and unsupported files together - gets replayed once approved, so an
+unsupported file riding alongside a scanned one still goes through
+unmodified. `scanOneFile()`'s existing "couldn't verify" path is
+untouched and still correct for its actual purpose: a genuinely
+supported file type that fails to parse.
+
+**New regression test**: extended the existing "file upload" e2e test
+with a real, valid 1x1 PNG - asserts neither dialog (`נמצא מידע רגיש
+בקובץ` nor `לא ניתן היה לבדוק את הקובץ`) appears, and the file uploads
+immediately, same as if the extension weren't installed. Verified against
+the real built extension in real Chromium, not just reasoned through.
+Also had to bring the local `pii-shield-postgres` Docker container back
+up before re-testing - it had exited (environment restart since the
+previous session), unrelated to this bug. Full suite re-run clean: 28
+unit + 3 e2e.
+

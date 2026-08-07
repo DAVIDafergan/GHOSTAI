@@ -270,6 +270,19 @@ test('file upload: a PDF containing a known name/id is blocked until the user ch
   uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
   expect(uploads).toHaveLength(2); // still 2 - both DOCX and XLSX were cancelled, neither uploaded
 
+  // --- 5. an unsupported file type (e.g. a photo) - never this feature's concern at all: no
+  // "found PII" dialog, and critically no "couldn't verify this file" dialog either - it must
+  // be as if the file-scanning feature doesn't exist for this file. Regression test for a real
+  // bug: unsupported files used to fall into extractText()'s "Unsupported file type" error path
+  // and incorrectly show the "couldn't verify" dialog.
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/photo.png'));
+  await page.waitForSelector('#status:has-text("photo.png")', { timeout: 10000 });
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).not.toBeVisible();
+  await expect(page.locator('text=לא ניתן היה לבדוק את הקובץ')).not.toBeVisible();
+  uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
+  expect(uploads).toHaveLength(3);
+  expect(uploads[2].fileName).toBe('photo.png');
+
   await context.close();
 
   await fetch(`${BACKEND_URL}/admin/companies/${company.id}`, {
