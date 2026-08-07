@@ -3,6 +3,7 @@ import { TokenStore, tokenizeText } from '../shared/tokenizer';
 import { loadEntityStore, EntityStoreState } from './entityStore';
 import { renderBadge, updateBadge } from './badge';
 import { observeResponses } from './responseObserver';
+import { initFileUploadInterceptor } from './fileUploadInterceptor';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -119,6 +120,12 @@ whenBodyReady(() => {
   renderBadge();
   observeResponses(tokenStore);
 });
+
+// File `change`/`drop` events can fire before document.body exists (e.g. a
+// framework-mounted file input), so this is registered unconditionally,
+// not gated behind whenBodyReady like the DOM-dependent calls above -
+// document.addEventListener itself works from document_start.
+initFileUploadInterceptor(() => storeState);
 
 refreshEntityStore();
 setInterval(refreshEntityStore, REFRESH_INTERVAL_MS);

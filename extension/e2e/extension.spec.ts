@@ -173,6 +173,111 @@ test('a known company name and id number are tokenized before leaving the browse
   });
 });
 
+test('file upload: a PDF containing a known name/id is blocked until the user chooses to proceed, a clean PDF uploads immediately', async () => {
+  const companyRes = await fetch(`${BACKEND_URL}/admin/companies`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
+    body: JSON.stringify({ name: 'Extension E2E Test Co (file upload)' }),
+  });
+  const company = (await companyRes.json()) as { id: string; apiKey: string };
+
+  const meRes = await fetch(`${BACKEND_URL}/companies/me`, { headers: { 'x-api-key': company.apiKey } });
+  const me = (await meRes.json()) as { entitySalt: string };
+
+  const NAME = 'Avner Cohen';
+  const ID_NUMBER = '123456782';
+  await fetch(`${BACKEND_URL}/entities/batch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': company.apiKey },
+    body: JSON.stringify({
+      entities: [
+        { entityHash: computeEntityHash(NAME, me.entitySalt), entityType: 'name', confidence: 100 },
+        { entityHash: computeEntityHash(ID_NUMBER, me.entitySalt), entityType: 'id_number', confidence: 100 },
+      ],
+    }),
+  });
+
+  const employeeRes = await fetch(`${BACKEND_URL}/employees`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': company.apiKey },
+    body: JSON.stringify({ email: 'e2e-file-upload@extension-test.test' }),
+  });
+  const employee = (await employeeRes.json()) as { extensionKey: string };
+
+  const context = await chromium.launchPersistentContext('', {
+    headless: false,
+    args: [`--disable-extensions-except=${EXTENSION_PATH}`, `--load-extension=${EXTENSION_PATH}`],
+  });
+
+  let [background] = context.serviceWorkers();
+  if (!background) background = await context.waitForEvent('serviceworker');
+  const extensionId = background.url().split('/')[2];
+
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.fill('input >> nth=0', BACKEND_URL);
+  await popup.fill('input >> nth=1', employee.extensionKey);
+  await popup.click('button[type=submit]');
+  await expect(popup.locator('text=מחובר בהצלחה')).toBeVisible({ timeout: 10000 });
+  await popup.close();
+
+  const page = await context.newPage();
+  await page.goto(`${MOCK_URL}/file-upload`);
+  await page.waitForTimeout(3000);
+
+  // --- 1. a PDF with a known name/id: dialog appears, cancel -> never uploaded ---
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/with-pii.pdf'));
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('text=שמות: 1')).toBeVisible();
+  await expect(page.locator('text=מספרי ת.ז.: 1')).toBeVisible();
+  await page.click('text=בטל העלאה');
+  await page.waitForTimeout(500);
+  let uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
+  expect(uploads).toHaveLength(0);
+
+  // --- 2. the same file again: dialog appears, proceed anyway -> uploaded, unmodified ---
+  // Clearing first forces a genuine fresh 'change' event on re-selecting
+  // the same path - otherwise the browser treats "select this exact file
+  // again" as a no-op and never fires change a second time.
+  await page.setInputFiles('#file-input', []);
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/with-pii.pdf'));
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).toBeVisible({ timeout: 10000 });
+  await page.click('text=המשך בכל זאת');
+  await page.waitForSelector('#status:has-text("uploaded")');
+  uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0].fileName).toBe('with-pii.pdf');
+
+  // --- 3. a clean PDF: no dialog at all, uploads immediately ---
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/clean.pdf'));
+  await page.waitForSelector('#status:has-text("clean.pdf")', { timeout: 10000 });
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).not.toBeVisible();
+  uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
+  expect(uploads).toHaveLength(2);
+  expect(uploads[1].fileName).toBe('clean.pdf');
+
+  // --- 4. same PII, but as DOCX and XLSX - proves detection+extraction isn't PDF-only ---
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/with-pii.docx'));
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).toBeVisible({ timeout: 10000 });
+  await page.click('text=בטל העלאה');
+  await page.waitForTimeout(500);
+
+  await page.setInputFiles('#file-input', []);
+  await page.setInputFiles('#file-input', path.resolve(__dirname, 'fixtures/with-pii.xlsx'));
+  await expect(page.locator('text=נמצא מידע רגיש בקובץ')).toBeVisible({ timeout: 10000 });
+  await page.click('text=בטל העלאה');
+  await page.waitForTimeout(500);
+  uploads = (await (await fetch(`${MOCK_URL}/__received_uploads`)).json()) as { fileName: string }[];
+  expect(uploads).toHaveLength(2); // still 2 - both DOCX and XLSX were cancelled, neither uploaded
+
+  await context.close();
+
+  await fetch(`${BACKEND_URL}/admin/companies/${company.id}`, {
+    method: 'DELETE',
+    headers: { 'x-admin-username': SUPER_ADMIN_USERNAME, 'x-admin-password': SUPER_ADMIN_PASSWORD },
+  });
+});
+
 test('same as above, but against a ProseMirror-style contentEditable composer (real ChatGPT/Claude structure, not a <textarea>) that blurs focus to <body> on send', async () => {
   // Regression test for a real bug found manually against the actual
   // chat.openai.com/claude.ai sites: getLiveInputText() previously only

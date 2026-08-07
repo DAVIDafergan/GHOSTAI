@@ -14,6 +14,11 @@ export default defineConfig({
       targets: [
         { src: 'manifest.json', dest: '.' },
         { src: 'icons', dest: '.' },
+        // pdf.js's worker does the actual PDF parsing off the main thread;
+        // must ship as a real file (declared in manifest.json's
+        // web_accessible_resources) and be loaded via chrome.runtime.getURL()
+        // - it can't be part of the content-isolated.js bundle itself.
+        { src: '../node_modules/pdfjs-dist/build/pdf.worker.min.mjs', dest: 'workers' },
       ],
     }),
   ],

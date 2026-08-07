@@ -1726,3 +1726,218 @@ comparison (before/after) sent to the user. Confirmed hover states
 actually apply (card lift + shadow, button lift + color shift) via
 Playwright `.hover()` + screenshot, not just "the CSS looks right."
 
+## File upload scanning (PDF/Word/Excel) - starting point
+
+The gap this closes was already self-documented in the code:
+`content-main.ts`'s `patchedFetch` only tokenizes `init.body` when it's a
+plain string - a file upload goes out as `FormData` (binary multipart),
+which the existing warning log explicitly flags as "NOT covered by the
+current interception logic." Confirmed via a fresh repo-wide grep
+(file-upload/pdf/docx/xlsx/FileReader/FormData) that nothing else in
+`extension/src` touches files at all - this is a real gap, not a partial
+implementation.
+
+**Core architectural decision (given, not made here)**: unlike text, a
+PDF/DOCX/XLSX can't be reliably "edited in place" to redact just the
+sensitive span the way string tokenization does - so this is *informed
+blocking* (tell the user what was found, let them decide) rather than
+*silent tokenization*. Detection only, never silent auto-send and never
+silent auto-block.
+
+### Phase 1: libraries
+
+- **PDF**: `pdfjs-dist` (Apache-2.0) - the de facto standard, and the only
+  realistic choice for a pure-client-side PDF text extractor of this
+  quality.
+- **DOCX**: `mammoth` (BSD-2-Clause) - converts OOXML `.docx` to plain
+  text/HTML entirely client-side from an `ArrayBuffer`, no Node deps.
+- **XLSX/XLS**: `xlsx` (SheetJS Community Edition, Apache-2.0) - the
+  standard client-side spreadsheet parser, handles both modern `.xlsx`
+  and legacy binary `.xls`.
+- **Deliberately out of scope**: legacy binary `.doc` (pre-OOXML Word) -
+  no good lightweight pure-JS parser exists for it; scoping to modern
+  Office formats + PDF is a reasonable, professional boundary given the
+  complexity/benefit tradeoff, not an oversight. Worth revisiting only if
+  a real customer actually needs it.
+
+**Real vulnerabilities found and fixed during install, not shipped
+unpatched**: `npm install` initially resolved `pdfjs-dist@5.6.205` (this
+environment's Node is 20.19.6; pdf.js's latest major requires Node
+`>=22.13.0`, so npm silently picked the highest *compatible* version
+instead of latest) - which sits inside the vulnerable range of a
+**high-severity arbitrary-JavaScript-execution-on-malicious-PDF** advisory
+(GHSA-hq66-cqwq-w95j), fixed only in `6.2.108+`. Explicitly installed
+`pdfjs-dist@6.2.108` with the engine check overridden
+(`--engine-strict=false`) - safe to override here specifically because
+this package has zero install-time scripts (`npm view pdfjs-dist scripts`
+→ `{}`) and its actual runtime is the browser via esbuild bundling, never
+the local Node process the `engines` field is warning about; verified with
+a real bundle+browser-execution test, not just "the flag suppressed the
+error." Separately, the npm-registry `xlsx` package (`0.18.5`) has two
+unpatched high-severity advisories (prototype pollution, ReDoS) with **no
+fix available on the npm registry** - SheetJS stopped publishing patched
+Community Edition builds there and moved to their own CDN
+(`cdn.sheetjs.com`, their own documented distribution channel, not a
+workaround) - installed from
+`https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz` instead, landing on
+`0.20.3`. Post-fix `npm audit` shows zero findings for either package; the
+3 remaining findings (`esbuild`, `react-router`, `uuid`, all moderate) are
+pre-existing, unrelated to this feature, and out of scope here.
+
+**Verified all three with real extraction, not just "it imports cleanly"**:
+bundled a throwaway test script with esbuild in the exact IIFE/browser
+target config the real content scripts use, loaded it in a real headless
+Chromium via Playwright (served over `http://`, not `file://` - PDF.js's
+worker fetch is blocked under the `file:` scheme, a real thing to know
+before hitting it inside the actual extension), and extracted text from
+hand-built minimal-but-valid PDF/DOCX/XLSX files containing the exact
+test string `"Customer record: Avner Cohen, ID 123456782"` (matching the
+demo dataset referenced later in this task). All three came back with the
+exact expected text, including PDF.js's worker (the highest-risk piece,
+given the earlier open question about worker-loading vs. a host page's
+CSP in a MV3 content-script context) - resolved empirically rather than
+by reasoning alone.
+
+### Phase 2+3+4: interception, extraction/scanning, dialog UI
+
+Built together since they're one tightly-coupled pipeline. Key decisions:
+
+**Where interception lives**: the task's own framing described this
+relative to `content-main.ts`'s `patchedFetch` (MAIN world). Implemented
+it in the **isolated world** instead (`fileUploadInterceptor.ts`, wired
+into `content-isolated.ts`) - a deliberate deviation, reasoned through:
+`change`/`drop` are plain DOM events, needing no page-JS access (unlike
+patching `fetch`, which is why MAIN world exists at all), and isolated
+world already holds the entity index and confidence/type settings
+locally. Doing it there avoids a `postMessage` round-trip for
+potentially-large extracted file text, and sidesteps a real open question
+about whether pdf.js's Worker can reliably load a `chrome-extension://`
+script URL from within MAIN-world execution under an arbitrary host
+page's CSP (isolated world's resource loading is extension-controlled,
+not subject to the host page's CSP the same way). This still satisfies
+the actual requirement (catch the file before it becomes `FormData` in
+any fetch/XHR call) - the DOM event fires before that regardless of which
+world observes it.
+
+**The core engineering problem**: our scan is inherently async (must read
+and parse the file), but stopping the browser's own upload handling for
+an event must happen synchronously, in the same tick the event fires. The
+implemented pattern: capture-phase listener on `document` for both
+`change` (on `input[type=file]`) and `drop`, calls
+`preventDefault()`/`stopImmediatePropagation()` **unconditionally and
+synchronously** the instant a new (not-yet-approved) file is seen -
+before we know anything about its contents - then scans asynchronously.
+If approved (clean, or user clicked "continue anyway"), a fresh
+`DataTransfer` is built from the *same* `File` object(s) and a new
+`change`/`drop` event is dispatched on the same target, letting the
+page's own upload logic run normally on the replay. A `WeakSet<File>`
+tracks already-approved files so the replay doesn't re-trigger our own
+listener into an infinite loop. Known, accepted limitation: a
+programmatically re-dispatched event has `isTrusted: false` - if a site's
+own upload handler specifically checks `event.isTrusted` (uncommon, but
+possible), the replay could be ignored. No evidence either real site does
+this, but it's the honest caveat of this approach; Phase 5 was meant to
+be the real-world check for exactly this kind of thing (see below).
+
+**Detection, not silent redaction** (per the given architecture): file
+matches use a disposable, per-scan `TokenStore` - never the
+conversation's shared one - since file content is never actually
+substituted/sent; only the *count and types* of what was found are shown
+to the user (never raw values, consistent with the rest of the product).
+Reused `tokenizeText()` exactly as-is (same regex/hash-matching pipeline
+already used for message text) rather than writing a parallel matcher.
+Extraction failures (corrupted/encrypted/unsupported-variant files) get
+their own distinct dialog ("couldn't verify this file") rather than being
+silently treated as clean or silently blocked - an honest third state.
+
+**Dialog UI**: plain DOM/inline-styles (`fileScanDialog.ts`), matching
+`badge.ts`'s existing approach (same max z-index, same
+"inject into `document.documentElement`" pattern) rather than introducing
+React/a new UI framework into the isolated-world bundle for one modal.
+
+**Audit trail**: file-based blocks/overrides get logged to
+`/audit-logs` the same way text blocks already do (`eventType: 'blocked'`
+on cancel, `'user_override'` on "continue anyway" - a genuinely different,
+useful signal for an admin: "someone knowingly sent something flagged,"
+not just "something got blocked"). Extraction-failure cases are
+deliberately *not* logged - a reasonable scope boundary, not an oversight.
+
+**Real bug found while testing, not in the feature logic**: Jest crashed
+importing `fileTextExtractor.ts` at all - `pdfjs-dist`'s ESM build uses
+`import.meta.url` internally, which Jest's default CJS transform can't
+parse, even for tests (DOCX/XLSX detection) that never touch PDF code.
+Fixed by converting all three library imports (pdf.js, mammoth, xlsx)
+from static, module-scope imports to `await import(...)` inside each
+extractor function - loaded only when that file type is actually
+encountered. This didn't reduce actual bytes shipped (esbuild's IIFE
+output, required for a classic-script content script, doesn't
+code-split - see `scripts/build-content-scripts.mjs`), just deferred
+compilation of that function body (standard, unrelated to dynamic
+import specifically) - correcting an earlier comment that overclaimed a
+network/bundle-size benefit that isn't real for this build format.
+
+**Second real bug found while testing**: attempting to unit-test DOCX
+extraction under Jest failed with `"Could not find file in options"` -
+traced to `mammoth`'s **Node** entry point (`lib/index.js`, what Jest
+resolves under `testEnvironment: 'node'`) expecting `options.buffer`,
+while the extraction code correctly uses `options.arrayBuffer` - the key
+its **browser** entry point expects (what esbuild actually resolves when
+bundling for `platform: 'browser'`, already proven correct in the Phase 1
+real-browser smoke test). The application code was right; testing it
+under Jest would have been testing a different code path than what
+ships. Resolution: kept only `detectFileKind()` (pure, environment-
+agnostic) in the Jest suite, and extended the real-browser e2e test to
+cover DOCX and XLSX too, not just PDF - the only environment where
+"which entry point gets resolved" actually matches production.
+
+**Automated tests**: `fileTextExtractor.spec.ts` (9 cases, `detectFileKind`
+only, see above for why extraction itself isn't unit-tested here).
+`extension.spec.ts`'s new "file upload" test, against the real built
+extension in real Chromium: a PDF with a known name+id shows the dialog
+with correct per-type counts, cancelling genuinely prevents the network
+upload (checked via the mock server's own received-uploads log, not just
+"no error"), re-selecting the same file and clicking "continue anyway"
+uploads it unmodified, a clean PDF uploads with no dialog at all, and the
+same PII repeated as DOCX and XLSX both correctly trigger the dialog too
+- proving detection isn't PDF-only. Found and fixed a real test-harness
+quirk along the way: Playwright's `setInputFiles()` called twice with the
+identical path doesn't fire a second `change` event (the browser treats
+re-selecting the exact same file as a no-op) - fixed by clearing the
+input (`setInputFiles('#file-input', [])`) between selections, not a bug
+in the extension itself. Full suite: 28 unit + 3 real-browser e2e, all
+green.
+
+### Phase 5: real-site verification - blocked by network access, not by the feature
+
+The task explicitly required checking against the real chat.openai.com/
+claude.ai (not just automated mock testing), with F12 Network tab open.
+Attempted this honestly before reporting anything: `curl` to
+`chatgpt.com`/`claude.ai` returned `403`; a real headless Chromium via
+Playwright got the same `403`, landing on a Cloudflare challenge page
+(`__cf_chl_rt_tk=...` in the redirect URL) - this sandboxed environment's
+network is being bot-challenged by Cloudflare before the page even loads,
+independent of anything in this extension's code. Did not attempt any
+form of fingerprint spoofing or challenge bypass to work around this -
+that would mean deliberately evading a site's own anti-automation
+protections, which isn't an appropriate thing to route around even for a
+legitimate testing purpose.
+
+**Honest status: this specific sub-step could not be completed from this
+environment.** Everything upstream of it is done and verified as
+thoroughly as possible without real-site access: the mock pages already
+replicate the two real structural quirks found and fixed in earlier
+rounds against the actual sites (a ProseMirror-style `contentEditable`
+composer that blurs to `<body>` on send, and the general
+ChatGPT/Claude-shaped DOM), and the file-upload interception itself
+(`change`/`drop` at `document` capture phase) is a generic DOM mechanism,
+not tied to any provider-specific markup - unlike the composer-text
+capture logic, there's no known site-specific quirk this needs to handle
+that the mock test wouldn't already exercise.
+
+**What's flagged to the user directly** (not silently skipped or marked
+done): a copy-pasteable manual checklist for them to run themselves,
+since they have real access these sites this sandbox doesn't. Until that
+manual pass happens, this feature should be considered *code-complete and
+automated-test-verified*, not yet *confirmed against the real sites* -
+an honest distinction worth preserving rather than blurring.
+

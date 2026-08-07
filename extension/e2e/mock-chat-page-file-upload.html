@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mock AI Chat - File Upload</title>
+  </head>
+  <body>
+    <input type="file" id="file-input" />
+    <div id="status"></div>
+    <script>
+      document.getElementById('file-input').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        document.getElementById('status').textContent = `uploaded: ${data.fileName} (${data.size} bytes)`;
+      });
+    </script>
+  </body>
+</html>

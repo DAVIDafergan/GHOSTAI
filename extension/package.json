@@ -9,13 +9,17 @@
     "e2e": "xvfb-run -a playwright test"
   },
   "dependencies": {
+    "mammoth": "^1.12.0",
+    "pdfjs-dist": "^6.2.108",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
     "@types/chrome": "^0.0.287",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -24,6 +28,7 @@
     "esbuild": "^0.24.0",
     "express": "^4.21.1",
     "jest": "^30.0.0",
+    "multer": "^2.2.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.7.3",
     "vite": "^5.4.11",
@@ -34,6 +39,9 @@
     "testEnvironment": "node",
     "testRegex": ".*\\.(spec|test)\\.ts$",
     "rootDir": ".",
-    "testPathIgnorePatterns": ["/node_modules/", "/e2e/"]
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/e2e/"
+    ]
   }
 }
