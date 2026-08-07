@@ -1984,3 +1984,73 @@ up before re-testing - it had exited (environment restart since the
 previous session), unrelated to this bug. Full suite re-run clean: 28
 unit + 3 e2e.
 
+## Phase 5 revisited: real-site access was possible after all
+
+The earlier "blocked by Cloudflare" finding turned out to be incomplete -
+that check used **headless** Chromium. The actual extension e2e tests
+already use `headless: false` (a real, visible browser - required for
+loading MV3 extensions reliably anyway), and retrying the site-access
+check the same way got real `200`s on both `chatgpt.com` and `claude.ai`,
+no challenge page. Cloudflare's block was specifically flagging headless
+mode, not this environment/IP in general. Worth remembering: don't
+conclude "no access" from a headless-only check when the real usage
+(loading an extension) never runs headless anyway.
+
+**What this let me actually verify against the real sites**, with the
+real built extension, a real backend, and a real seeded company (`Avner
+Cohen` / `123456782`, then cleaned up after):
+
+- The extension genuinely activates on real `chatgpt.com`: the
+  `Nistar active` badge renders in the correct position, no console
+  errors from the extension itself (the two `401`s and "Not signed in
+  with the identity provider" seen are ChatGPT's own auth calls, failing
+  because we're not logged in - unrelated noise, not caused by this
+  extension).
+- The interception mechanism fires correctly against the real page's
+  actual DOM and event system (not just the mock page): forcing
+  `with-pii.pdf` onto a real file input via `setInputFiles` correctly
+  triggered our "נמצא מידע רגיש בקובץ" dialog.
+- The unsupported-file fix (this session's earlier bug fix) holds on the
+  real DOM too: a real PNG through a real file input triggers neither
+  dialog - confirmed, not assumed.
+- **Real, honest limitation found, not a shortcut**: every file input
+  visible on `chatgpt.com` in a logged-out state is `accept`-restricted
+  to images only (`image/webp,.webp,image/png,.png,...` / `image/*`) -
+  confirmed by finding and clicking the actual "+" attach button
+  (`aria-label="Add files and more"`, which itself reads "Add photos and
+  more" while logged out) and checking the resulting menu/inputs. The
+  sidebar text is explicit: *"Log in to get answers based on saved
+  chats, plus create images **and upload files**."* Real document
+  (PDF/DOCX/XLSX) upload on ChatGPT appears to be a logged-in-only
+  surface - I don't have a real account to test past that wall, and
+  didn't attempt to fabricate one. `claude.ai` requires login even
+  sooner - redirects straight to `/login`, zero file inputs reachable
+  before that.
+
+**Net effect**: the *mechanism* (interception, extraction, scanning,
+dialog, the unsupported-file fix) is now confirmed correct against real
+site DOM/event behavior, not just the mock page - this is meaningfully
+stronger evidence than what was available before. What remains genuinely
+unverified is the full flow through an actual logged-in document-upload
+menu on either site, which needs a real account. Handing that off to the
+user with a short, specific checklist below rather than the vague one
+from before - now scoped exactly to what's still actually open.
+
+**Manual checklist for the user** (only this part remains):
+1. Log into a real ChatGPT and Claude account with the extension
+   installed and connected to a real company.
+2. Click "+" / "Add files and more" (ChatGPT) - confirm the menu now
+   offers a non-image document option once logged in, and locate that
+   upload control.
+3. Upload a PDF/DOCX/XLSX containing a known name or ID number - confirm
+   the "נמצא מידע רגיש בקובץ" dialog appears with correct counts, and
+   that clicking "בטל העלאה" genuinely prevents the network request (F12
+   Network tab - no upload call fires) rather than just closing the
+   dialog.
+4. Click "המשך בכל זאת" on a repeat attempt - confirm the file actually
+   uploads and the conversation proceeds normally.
+5. Upload an ordinary photo - confirm no dialog at all, same as before
+   this feature existed.
+6. Repeat steps 2-5 on Claude.ai (its own attach UI, likely a paperclip
+   icon).
+
