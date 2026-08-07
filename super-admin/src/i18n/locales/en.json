@@ -1,0 +1,87 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "retry": "Retry",
+    "logout": "Log out",
+    "appName": "Nistar - Super Admin"
+  },
+  "login": {
+    "subtitle": "Access for the system operator only - not company admins. The username and password here are the operator account (SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD), not any company's apiKey.",
+    "backendUrl": "Backend server URL",
+    "username": "Username",
+    "password": "Password",
+    "connecting": "Connecting...",
+    "submit": "Log in",
+    "errorAuth": "Incorrect username or password.",
+    "errorGeneric": "Could not connect. Make sure the server address is correct and the server is running."
+  },
+  "dashboard": {
+    "loadError": "Could not load the company list.",
+    "registeredCompanies": "Registered companies",
+    "activeOfTotal": "Active out of total",
+    "blocksThisMonthSystemWide": "Blocks this month - system-wide",
+    "employeesSystemWide": "Registered employees - system-wide",
+    "createCompanyTitle": "Create a new company",
+    "companyNamePlaceholder": "Company name",
+    "adminEmailPlaceholder": "Admin email (optional)",
+    "create": "Create company",
+    "creating": "Creating...",
+    "createError": "Error creating the company",
+    "apiKeyDisplayNote": "The new company's apiKey (shown only once - pass it to the company admin so they can complete onboarding):",
+    "allCompaniesTitle": "All companies ({{shown}} of {{total}})",
+    "searchPlaceholder": "Search by company name...",
+    "allStatuses": "All statuses",
+    "statusActive": "Active",
+    "statusPendingDeletion": "Pending deletion",
+    "allConnectors": "All connectors",
+    "allHealthChecks": "All health checks",
+    "healthOk": "🟢 Healthy",
+    "healthFailed": "🔴 Failed",
+    "healthNever": "Not checked yet",
+    "noCompaniesYet": "No companies registered yet.",
+    "noCompaniesMatch": "No companies match the current filters.",
+    "confirmDisable": "Disable this company? Data will be retained per the retention policy (30 days) before final deletion.",
+    "disable": "Disable",
+    "table": {
+      "name": "Name",
+      "joined": "Joined",
+      "employees": "Employees",
+      "blocksThisMonth": "Blocks this month",
+      "connector": "Connector",
+      "healthCheck": "Health check",
+      "status": "Status"
+    },
+    "connectorStatus": {
+      "none": "No connector",
+      "pending": "Awaiting initial sync",
+      "connected": "Connected",
+      "syncing": "Syncing",
+      "error": "Error",
+      "sync_incomplete": "Sync incomplete"
+    }
+  },
+  "health": {
+    "title": "System Health",
+    "subtitle": "Results of automated synthetic tests over time, across all companies",
+    "loading": "Loading check history...",
+    "noHistory": "No check history yet.",
+    "successRate": "Success rate (last 30 checks)",
+    "lastRun": "Last run",
+    "chainStep": {
+      "companyCreate": "Create test company",
+      "employeeCreate": "Add test employee",
+      "blockSimulate": "Simulate a block",
+      "auditVerify": "Verify audit log",
+      "dashboardVerify": "Verify dashboard",
+      "cleanup": "Clean up test data"
+    },
+    "table": {
+      "time": "Time",
+      "company": "Company",
+      "result": "Result",
+      "detail": "Detail"
+    },
+    "resultOk": "✓ Healthy",
+    "resultFail": "✗ Failed"
+  }
+}

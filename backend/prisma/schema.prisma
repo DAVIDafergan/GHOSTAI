@@ -23,6 +23,12 @@ model Company {
   // different device/browser/cache-clear instead of being asked for again
   // every time. See BUILD_LOG.md.
   connectorAdminUrl String?
+  // Flags the single internal company used by the system-wide synthetic
+  // E2E health check (create company -> add employee -> simulate a block
+  // -> verify audit log/dashboard). Never a real customer - excluded from
+  // every operator-facing company list/aggregate so it can't be mistaken
+  // for one. See HealthCheckService.runSystemE2ECheck and BUILD_LOG.md.
+  isSynthetic   Boolean  @default(false)
   deletedAt     DateTime?
   createdAt     DateTime @default(now())
 
@@ -113,6 +119,15 @@ model HealthCheck {
   ranAt         DateTime  @default(now())
   success       Boolean
   detail        String?
+  // "canary" (per-company hash lookup, the original mechanism) or
+  // "e2e_chain" (system-wide: fake company -> employee -> simulated block
+  // -> audit log/dashboard verification). Lets the super-admin system
+  // health view show only the full-chain checks without a separate table.
+  kind          String    @default("canary")
+  // Ordered array of { key, success, detail } for each step of the chain,
+  // populated only for kind = "e2e_chain".
+  steps         Json?
 
   @@index([companyId, ranAt])
+  @@index([kind, ranAt])
 }

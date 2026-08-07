@@ -48,8 +48,13 @@ export class ApiError extends Error {
  * user if a caller renders `ApiError.message` directly.
  */
 async function extractErrorMessage(res: Response): Promise<string> {
+  // This module sits below React (no useTranslation here), so it reads the
+  // language i18n already set on <html> rather than duplicating a second
+  // language store.
+  const genericMessage =
+    document.documentElement.lang === 'en' ? `Server error (code ${res.status})` : `שגיאה בשרת (קוד ${res.status})`;
   const text = await res.text().catch(() => '');
-  if (!text) return `שגיאה בשרת (קוד ${res.status})`;
+  if (!text) return genericMessage;
   try {
     const parsed = JSON.parse(text) as { message?: string | string[] };
     if (Array.isArray(parsed.message)) return parsed.message.join(', ');
@@ -58,7 +63,7 @@ async function extractErrorMessage(res: Response): Promise<string> {
     // Not JSON - fall through to the generic message below rather than
     // displaying whatever raw text came back.
   }
-  return `שגיאה בשרת (קוד ${res.status})`;
+  return genericMessage;
 }
 
 async function request<T>(session: SuperAdminSession, path: string, init: RequestInit = {}): Promise<T> {
@@ -92,6 +97,16 @@ export interface CompanySummary {
   healthCheckAt: string | null;
 }
 
+export interface SystemHealthCheck {
+  id: string;
+  companyId: string;
+  ranAt: string;
+  success: boolean;
+  detail: string | null;
+  kind: string;
+  steps: { key: string; success: boolean; detail?: string }[] | null;
+}
+
 export const api = {
   /** Verifies backendUrl+username+password are actually valid before treating
    * login as successful, rather than just saving whatever was typed. */
@@ -105,4 +120,10 @@ export const api = {
 
   disableCompany: (session: SuperAdminSession, id: string) =>
     request<void>(session, `/admin/companies/${id}`, { method: 'DELETE' }),
+
+  getSystemHealthHistory: (session: SuperAdminSession, limit = 100) =>
+    request<SystemHealthCheck[]>(session, `/admin/health/system-history?limit=${limit}`),
+
+  runSystemHealthCheckNow: (session: SuperAdminSession) =>
+    request<SystemHealthCheck>(session, '/admin/health/system-check/run', { method: 'POST' }),
 };

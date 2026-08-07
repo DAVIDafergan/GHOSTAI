@@ -2120,3 +2120,67 @@ this same pass (framer-motion page-transition fades added to every
 page), full super-admin i18n/redesign, and the landing page English
 version - continuing now.
 
+**[2026-08-07 21:40] Part 3 items 7+8 - full E2E synthetic health chain +
+super-admin System Health dashboard, plus Part 1 items 1+3 for
+super-admin**: the existing hourly canary (`HealthCheckService.runCheck`)
+only recomputed a hash and checked one DB lookup - proves the DB/hashing
+pipeline is alive, but not the actual chain a real customer depends on.
+Added `runSystemE2ECheck()`, a genuinely separate check that runs once
+system-wide (not per real company) on the same hourly cron:
+
+1. `companyCreate` - finds-or-creates a single dedicated internal company
+   (idempotent, reused every run, never recreated) flagged
+   `isSynthetic: true` on a new `Company.isSynthetic` column (migration
+   `20260807193117_add_synthetic_health_e2e`).
+2. `employeeCreate` - finds-or-creates one fake employee under it.
+3. `blockSimulate` - writes a real `AuditLog` row (`eventType: "blocked"`)
+   exactly as the extension's real block path would.
+4. `auditVerify` - re-reads that exact row back by id to confirm it's
+   genuinely queryable, not just that the write didn't throw.
+5. `dashboardVerify` - calls the real `DashboardService.getSummary()` (the
+   same code path the admin console's dashboard uses) and confirms the
+   simulated block is actually reflected in `blocksThisMonth`.
+6. `cleanup` - prunes the synthetic company's audit-log rows older than 7
+   days, so this doesn't grow unbounded forever.
+
+Each step's success/failure and detail is stored as a JSON array on a new
+`HealthCheck.steps` column, with a new `HealthCheck.kind` discriminator
+(`"canary"` vs `"e2e_chain"`) so the two mechanisms share one table
+without colliding. `isSynthetic` also excludes this company from every
+real operator-facing list - verified by hitting the running backend
+directly: `GET /admin/companies` does not include it, while
+`POST /admin/health/system-check/run` (new operator-only endpoint,
+`SuperAdminGuard`, same throttling posture as `/admin/companies`) runs
+the full chain and returns `success: true` with all six steps green
+against the actual local Postgres.
+
+Schema note on how the migration was applied: `prisma migrate dev`
+refused to run because of pre-existing drift in this dev DB (an unrelated
+`demo_customers` table from other local testing, not part of this
+project's schema) - it wanted a full `migrate reset`, which would have
+destroyed real data accumulated this session. Conservative choice made
+instead: hand-wrote the migration SQL, applied it directly via
+`prisma db execute` (bypasses the drift check), then registered it in
+`prisma/migrations/` and marked it applied via `prisma migrate resolve
+--applied`, leaving the unrelated table untouched. `prisma migrate
+status` now reports clean.
+
+Built `SystemHealthPanel` (super-admin, added `recharts`) - success-rate
+percentage over the last 30 checks, a red/green bar-history strip (not
+just the latest ✓/✗, per the explicit ask), last-run detail, and the six
+chain-step badges with hover detail on failure. Wired into the
+super-admin Dashboard alongside a full i18n + visual-redesign pass for
+super-admin (Login + Dashboard), matching the same treatment as
+admin-console: `i18next`/`react-i18next`, `he.json`/`en.json`, dynamic
+`dir`/`lang`, logical-property Tailwind classes, Heebo font,
+`framer-motion` fade-in. Verified live: typecheck + build clean, and a
+real headless-browser run against the actual local backend (login,
+dashboard load, language toggle) with screenshots confirming both Hebrew
+RTL and English LTR render correctly with zero console errors.
+
+Known gap, deferred to Part 5 item 12: no Jest unit tests were added for
+`HealthCheckService` in this pass (verified instead via live HTTP calls
+against the real local backend + Postgres, consistent with how the rest
+of this project prefers real-infra verification over mocks) - flagging
+so it isn't silently missed when addressing test coverage later.
+

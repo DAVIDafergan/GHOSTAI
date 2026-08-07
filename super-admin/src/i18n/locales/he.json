@@ -1,0 +1,87 @@
+{
+  "common": {
+    "loading": "טוען...",
+    "retry": "נסה שוב",
+    "logout": "התנתקות",
+    "appName": "Nistar - Super Admin"
+  },
+  "login": {
+    "subtitle": "גישה למפעיל המערכת בלבד - לא למנהלי חברות. שם המשתמש והסיסמה כאן הם חשבון המפעיל (SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD), לא apiKey של אף חברה.",
+    "backendUrl": "כתובת שרת ה-backend",
+    "username": "שם משתמש",
+    "password": "סיסמה",
+    "connecting": "מתחבר...",
+    "submit": "כניסה",
+    "errorAuth": "שם משתמש או סיסמה שגויים.",
+    "errorGeneric": "לא ניתן היה להתחבר. ודאו שכתובת השרת נכונה ושהשרת פעיל."
+  },
+  "dashboard": {
+    "loadError": "לא ניתן היה לטעון את רשימת החברות.",
+    "registeredCompanies": "חברות רשומות",
+    "activeOfTotal": "פעילות מתוך הכל",
+    "blocksThisMonthSystemWide": "חסימות החודש - כלל המערכת",
+    "employeesSystemWide": "עובדים רשומים - כלל המערכת",
+    "createCompanyTitle": "יצירת חברה חדשה",
+    "companyNamePlaceholder": "שם החברה",
+    "adminEmailPlaceholder": "מייל מנהל (אופציונלי)",
+    "create": "צור חברה",
+    "creating": "יוצר...",
+    "createError": "שגיאה ביצירת החברה",
+    "apiKeyDisplayNote": "apiKey של החברה החדשה (מוצג פעם אחת בלבד - העבירו אותו למנהל החברה כדי שיוכל להשלים את ה-onboarding):",
+    "allCompaniesTitle": "כל החברות ({{shown}} מתוך {{total}})",
+    "searchPlaceholder": "חיפוש לפי שם חברה...",
+    "allStatuses": "כל הסטטוסים",
+    "statusActive": "פעילה",
+    "statusPendingDeletion": "בתהליך מחיקה",
+    "allConnectors": "כל ה-connectors",
+    "allHealthChecks": "כל ה-health checks",
+    "healthOk": "🟢 תקין",
+    "healthFailed": "🔴 נכשל",
+    "healthNever": "טרם נבדק",
+    "noCompaniesYet": "אין עדיין חברות רשומות במערכת.",
+    "noCompaniesMatch": "אין חברות התואמות את הסינון.",
+    "confirmDisable": "להשבית את החברה? הנתונים יישמרו לפי מדיניות השמירה (30 יום) לפני מחיקה סופית.",
+    "disable": "השבת",
+    "table": {
+      "name": "שם",
+      "joined": "הצטרפה",
+      "employees": "עובדים",
+      "blocksThisMonth": "חסימות החודש",
+      "connector": "Connector",
+      "healthCheck": "Health check",
+      "status": "סטטוס"
+    },
+    "connectorStatus": {
+      "none": "אין connector",
+      "pending": "ממתין לסנכרון ראשוני",
+      "connected": "מחובר",
+      "syncing": "מסנכרן",
+      "error": "שגיאה",
+      "sync_incomplete": "סנכרון לא הושלם"
+    }
+  },
+  "health": {
+    "title": "בריאות המערכת",
+    "subtitle": "תוצאות בדיקות סינתטיות אוטומטיות לאורך זמן, לכלל החברות",
+    "loading": "טוען היסטוריית בדיקות...",
+    "noHistory": "אין עדיין היסטוריית בדיקות.",
+    "successRate": "אחוז הצלחה (30 בדיקות אחרונות)",
+    "lastRun": "הרצה אחרונה",
+    "chainStep": {
+      "companyCreate": "יצירת חברת בדיקה",
+      "employeeCreate": "הוספת עובד בדיקה",
+      "blockSimulate": "סימולציית חסימה",
+      "auditVerify": "אימות ביומן הביקורת",
+      "dashboardVerify": "אימות בלוח הבקרה",
+      "cleanup": "ניקוי נתוני בדיקה"
+    },
+    "table": {
+      "time": "זמן",
+      "company": "חברה",
+      "result": "תוצאה",
+      "detail": "פירוט"
+    },
+    "resultOk": "✓ תקין",
+    "resultFail": "✗ נכשל"
+  }
+}

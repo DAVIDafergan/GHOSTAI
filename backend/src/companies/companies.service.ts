@@ -31,7 +31,10 @@ export class CompaniesService {
     monthStart.setHours(0, 0, 0, 0);
 
     const [companies, employeeCounts, blockCounts, connectors, healthChecks] = await Promise.all([
-      this.prisma.company.findMany({ orderBy: { createdAt: 'desc' } }),
+      // isSynthetic excludes the single internal company used by the
+      // system-wide E2E health check - never a real customer, so it must
+      // never appear in the operator's actual company list/aggregates.
+      this.prisma.company.findMany({ where: { isSynthetic: false }, orderBy: { createdAt: 'desc' } }),
       this.prisma.employee.groupBy({ by: ['companyId'], _count: { _all: true } }),
       this.prisma.auditLog.groupBy({
         by: ['companyId'],
@@ -39,7 +42,7 @@ export class CompaniesService {
         _count: { _all: true },
       }),
       this.prisma.connector.findMany({ orderBy: { createdAt: 'desc' } }),
-      this.prisma.healthCheck.findMany({ orderBy: { ranAt: 'desc' } }),
+      this.prisma.healthCheck.findMany({ where: { kind: 'canary' }, orderBy: { ranAt: 'desc' } }),
     ]);
 
     const employeeCountByCompany = new Map(employeeCounts.map((e) => [e.companyId, e._count._all]));
