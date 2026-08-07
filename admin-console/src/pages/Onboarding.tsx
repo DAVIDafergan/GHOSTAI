@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError, ConnectorSummary } from '../api/client';
 import { useSession } from '../context/SessionContext';
+import { LanguageToggle } from '../components/LanguageToggle';
 
 const DRAFT_KEY = 'piiShieldOnboardingDraft';
 
@@ -27,19 +29,13 @@ function saveDraft(draft: Draft): void {
   localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
 }
 
-const SOURCE_TYPES: { value: string; label: string; available: boolean }[] = [
-  { value: 'postgres', label: 'PostgreSQL', available: true },
-  { value: 'csv', label: 'קובץ CSV', available: true },
-  { value: 'salesforce', label: 'Salesforce (בקרוב)', available: false },
-  { value: 'generic_api', label: 'API כללי (בקרוב)', available: false },
-];
-
 export function Onboarding() {
   // Persisted across reloads so closing the browser mid-wizard resumes
   // instead of restarting (and, critically, doesn't create a second
   // company on step 1 - spec 6.5's onboarding edge case).
   const [draft, setDraft] = useState<Draft>(loadDraft);
   const { login } = useSession();
+  const { t } = useTranslation();
 
   const update = (patch: Partial<Draft>) => {
     setDraft((prev) => {
@@ -50,9 +46,12 @@ export function Onboarding() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center p-8" dir="rtl">
-      <h1 className="mb-2 text-2xl font-bold text-indigo-700">הקמת Nistar</h1>
-      <p className="mb-8 text-sm text-gray-500">שלב {draft.step} מתוך 4</p>
+    <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center p-8">
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-indigo-700">{t('onboarding.title')}</h1>
+        <LanguageToggle />
+      </div>
+      <p className="mb-8 text-sm text-gray-500">{t('onboarding.stepOf', { step: draft.step })}</p>
       {draft.step === 1 && <StepCompanyDetails draft={draft} onNext={update} />}
       {draft.step === 2 && <StepConnectSource draft={draft} onNext={update} />}
       {draft.step === 3 && <StepInitialSync draft={draft} onNext={update} />}
@@ -70,6 +69,7 @@ export function Onboarding() {
 }
 
 function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: Partial<Draft>) => void }) {
+  const { t } = useTranslation();
   const [backendUrl, setBackendUrl] = useState(draft.backendUrl || 'http://localhost:3000');
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -87,9 +87,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
       onNext({ step: 2, backendUrl, companyId: result.id, apiKey: result.apiKey });
     } catch (err) {
       setError(
-        err instanceof ApiError && err.status === 401
-          ? 'שם המשתמש או הסיסמה שגויים. ודא שהזנת את פרטי חשבון המפעיל הנכונים (SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD, מוגדרים אצלכם כמפעילי המערכת, ב-Railway).'
-          : 'לא ניתן היה ליצור את החברה. ודא שכתובת השרת נכונה ושהשרת פעיל.',
+        err instanceof ApiError && err.status === 401 ? t('onboarding.step1.errorAuth') : t('onboarding.step1.errorGeneric'),
       );
     } finally {
       setLoading(false);
@@ -98,20 +96,11 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">
-        מסך זה מיועד אליכם כמפעילי Nistar, ליצירת חברת לקוח חדשה - לא ללקוח עצמו. מלאו כאן את פרטי
-        הלקוח שעבורו אתם פותחים חשבון.
-      </p>
-      <Field
-        label="שם חברת הלקוח"
-        help="השם שיוצג במסך הניהול ובדוחות של הלקוח הזה. אפשר לשנות אותו מאוחר יותר."
-      >
+      <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">{t('onboarding.step1.operatorNotice')}</p>
+      <Field label={t('onboarding.step1.companyName')} help={t('onboarding.step1.companyNameHelp')}>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
       </Field>
-      <Field
-        label="שם משתמש (חשבון המפעיל)"
-        help="לא קוד של הלקוח - זהו חשבון המפעיל שאתם, כמפעילי המערכת, הגדרתם בשרת (משתני הסביבה SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD ב-Railway). הוא מזהה אתכם כמי שמורשה ליצור חברות לקוח חדשות, ואינו נמסר ללקוחות."
-      >
+      <Field label={t('onboarding.step1.username')} help={t('onboarding.step1.usernameHelp')}>
         <input
           className="input"
           autoComplete="username"
@@ -120,7 +109,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
           required
         />
       </Field>
-      <Field label="סיסמה (חשבון המפעיל)">
+      <Field label={t('onboarding.step1.password')}>
         <input
           type="password"
           className="input"
@@ -130,10 +119,7 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
           required
         />
       </Field>
-      <Field
-        label="מייל איש קשר אצל הלקוח (אופציונלי)"
-        help="לקבלת התראות על פעילות חריגה ודוחות תקופתיים אצל הלקוח. אפשר להשלים זאת גם מאוחר יותר במסך ההגדרות."
-      >
+      <Field label={t('onboarding.step1.contactEmail')} help={t('onboarding.step1.contactEmailHelp')}>
         <input
           type="email"
           className="input"
@@ -143,14 +129,12 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
       </Field>
 
       <details className="rounded-lg border border-gray-200 p-3 text-sm">
-        <summary className="cursor-pointer select-none font-medium text-gray-600">
-          הגדרות מתקדמות (לרוב אין צורך לשנות)
-        </summary>
+        <summary className="cursor-pointer select-none font-medium text-gray-600">{t('onboarding.step1.advanced')}</summary>
         <div className="mt-3">
           <Field
-            label="כתובת שרת ה-backend"
-            help="כתובת ה-API של שרת Nistar שהקמתם. זו כתובת קבועה של הפריסה שלכם - נשארת זהה לכל חברות הלקוח שתיצרו, ואין צורך לשנות אותה כאן אלא אם הקמתם פריסה נפרדת."
-            howToFind="זו כתובת האינטרנט (URL) של שרת ה-backend שלכם, לדוגמה https://backend-production-xxxx.up.railway.app - תמצאו אותה בלוח הבקרה של Railway, תחת השירות backend."
+            label={t('onboarding.step1.backendUrl')}
+            help={t('onboarding.step1.backendUrlHelp')}
+            howToFind={t('onboarding.step1.backendUrlHowToFind')}
           >
             <input
               className="input"
@@ -164,13 +148,20 @@ function StepCompanyDetails({ draft, onNext }: { draft: Draft; onNext: (patch: P
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" className="btn-primary" disabled={loading}>
-        {loading ? 'יוצר חברה...' : 'המשך'}
+        {loading ? t('onboarding.step1.creating') : t('common.continue')}
       </button>
     </form>
   );
 }
 
 function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Partial<Draft>) => void }) {
+  const { t } = useTranslation();
+  const SOURCE_TYPES: { value: string; label: string; available: boolean }[] = [
+    { value: 'postgres', label: 'PostgreSQL', available: true },
+    { value: 'csv', label: t('onboarding.step2.sourceCsv'), available: true },
+    { value: 'salesforce', label: t('onboarding.step2.sourceSalesforce'), available: false },
+    { value: 'generic_api', label: t('onboarding.step2.sourceGenericApi'), available: false },
+  ];
   const [sourceType, setSourceType] = useState(draft.sourceType ?? 'postgres');
   const [connectorId, setConnectorId] = useState(draft.connectorId);
   const [checking, setChecking] = useState(false);
@@ -202,7 +193,7 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
     sourceType === 'csv'
       ? `{
   "backendUrl": "${draft.backendUrl}",
-  "apiKey": "<המפתח שמוצג למטה>",
+  "apiKey": "<${t('onboarding.step2.apiKeyTitle')}>",
   "source": {
     "type": "csv",
     "filePath": "/path/to/customers.csv",
@@ -214,7 +205,7 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
 }`
       : `{
   "backendUrl": "${draft.backendUrl}",
-  "apiKey": "<המפתח שמוצג למטה>",
+  "apiKey": "<${t('onboarding.step2.apiKeyTitle')}>",
   "source": {
     "type": "postgres",
     "connectionString": "postgresql://user:password@host:5432/dbname",
@@ -228,10 +219,7 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
 
   return (
     <div className="space-y-4">
-      <Field
-        label="סוג מקור הנתונים"
-        help="מאיזה מקור ה-connector יקרא את הנתונים הרגישים שיש להגן עליהם (למשל שמות ומספרי זהות של לקוחות)."
-      >
+      <Field label={t('onboarding.step2.sourceType')} help={t('onboarding.step2.sourceTypeHelp')}>
         <select
           className="input"
           value={sourceType}
@@ -248,59 +236,43 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
 
       {!connectorId && (
         <button className="btn-primary" onClick={handleCreateConnector}>
-          צור חיבור
+          {t('onboarding.step2.createConnector')}
         </button>
       )}
 
       {connectorId && (
         <div className="space-y-3 rounded-lg bg-gray-100 p-4 text-sm">
-          <p>
-            ה-connector הוא תוכנה קטנה שרצה בתוך הרשת שלכם (לא אצלנו) - היא קוראת את הנתונים הרגישים
-            מקומית, שולחת רק חתימות מוצפנות שלהם החוצה, ולעולם לא את הערכים המקוריים.
-          </p>
+          <p>{t('onboarding.step2.connectorIntro')}</p>
 
           <div>
-            <p className="mb-1 font-medium text-gray-700">1. מפתח ה-API של החברה שלכם</p>
-            <p className="mb-1 text-xs text-gray-500">
-              מוצג פעם אחת בלבד - העתיקו ושמרו אותו במקום בטוח (למשל מנהל סיסמאות). תזדקקו לו בקובץ
-              ההגדרות בשלב 3.
-            </p>
-            <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">
-              {draft.apiKey}
-            </code>
+            <p className="mb-1 font-medium text-gray-700">{t('onboarding.step2.apiKeyTitle')}</p>
+            <p className="mb-1 text-xs text-gray-500">{t('onboarding.step2.apiKeyHelp')}</p>
+            <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">{draft.apiKey}</code>
           </div>
 
           <div>
             <p className="mb-1 font-medium text-gray-700">
-              2. הכינו קובץ הגדרות בשם <code>connector.config.json</code> במחשב שממנו ירוץ ה-connector
+              {t('onboarding.step2.configTitle')} <code>connector.config.json</code>
             </p>
-            <p className="mb-1 text-xs text-gray-500">דוגמה מלאה שאפשר להעתיק ולערוך:</p>
+            <p className="mb-1 text-xs text-gray-500">{t('onboarding.step2.configExample')}</p>
             <pre className="overflow-x-auto rounded bg-gray-800 p-2 text-xs text-green-300" dir="ltr">
               {exampleConfig}
             </pre>
-            <HowToFind label="איך מוצאים host / port / connection string / credentials?">
-              אלו פרטי ההתחברות למסד הנתונים שלכם (למשל PostgreSQL): host ו-port הם הכתובת והפורט של
-              השרת שבו יושב מסד הנתונים (בדרך כלל 5432 עבור PostgreSQL), ו-user/password הם פרטי
-              משתמש עם הרשאת קריאה בלבד. פרטים אלה נמצאים אצל מי שמנהל את מסד הנתונים או את מערכת
-              ה-CRM אצלכם (צוות IT / DevOps), או בהגדרות החיבור של הכלי שבו משתמשים לניהול הנתונים.
-              אל תשתמשו בפרטי ההתחברות הראשיים (root) - מומלץ ליצור משתמש ייעודי לקריאה בלבד.
+            <HowToFind label={t('onboarding.step2.credentialsHowToFindLabel')}>
+              {t('onboarding.step2.credentialsHowToFind')}
             </HowToFind>
           </div>
 
           <div>
-            <p className="mb-1 font-medium text-gray-700">3. הריצו את ה-connector עם הקובץ שהכנתם</p>
+            <p className="mb-1 font-medium text-gray-700">{t('onboarding.step2.runTitle')}</p>
             <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">{dockerCommand}</code>
           </div>
 
           <button className="btn-secondary" onClick={handleCheckConnection} disabled={checking}>
-            {checking ? 'בודק...' : 'בדוק חיבור'}
+            {checking ? t('onboarding.step2.checking') : t('onboarding.step2.checkConnection')}
           </button>
-          {checkResult === 'ok' && <p className="text-green-700">✓ מחובר</p>}
-          {checkResult === 'not-yet' && (
-            <p className="text-amber-700">
-              ✗ עדיין לא זוהה חיבור מה-connector. ודא שהרצת אותו עם ה-API key הנכון ושיש לו גישה לשרת.
-            </p>
-          )}
+          {checkResult === 'ok' && <p className="text-green-700">{t('onboarding.step2.connectedOk')}</p>}
+          {checkResult === 'not-yet' && <p className="text-amber-700">{t('onboarding.step2.notYet')}</p>}
         </div>
       )}
 
@@ -309,13 +281,14 @@ function StepConnectSource({ draft, onNext }: { draft: Draft; onNext: (patch: Pa
         disabled={!connectorId}
         onClick={() => onNext({ step: 3, connectorId, sourceType })}
       >
-        המשך
+        {t('common.continue')}
       </button>
     </div>
   );
 }
 
 function StepInitialSync({ draft, onNext }: { draft: Draft; onNext: (patch: Partial<Draft>) => void }) {
+  const { t } = useTranslation();
   const [connector, setConnector] = useState<ConnectorSummary | null>(null);
   const [entitiesCount, setEntitiesCount] = useState(0);
   const session = { backendUrl: draft.backendUrl, apiKey: draft.apiKey as string };
@@ -346,36 +319,32 @@ function StepInitialSync({ draft, onNext }: { draft: Draft; onNext: (patch: Part
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">ממתין לסנכרון הראשוני מה-connector...</p>
+      <p className="text-sm text-gray-600">{t('onboarding.step3.waiting')}</p>
       <div className="rounded-lg bg-gray-100 p-4 text-sm">
-        {isSyncing && <p>מסנכרן... נסרקו {entitiesCount} רשומות עד כה</p>}
-        {isDone && <p className="text-green-700">✓ הסנכרון הושלם! נסרקו {entitiesCount} רשומות.</p>}
-        {isError && (
-          <p className="text-red-700">
-            הסנכרון נכשל או הופסק באמצע. הרץ שוב את ה-connector - הוא ימשיך מהנקודה שבה נעצר, לא יתחיל
-            מחדש.
-          </p>
-        )}
-        {!connector && <p>ממתין לחיבור ראשוני...</p>}
+        {isSyncing && <p>{t('onboarding.step3.syncing', { count: entitiesCount })}</p>}
+        {isDone && <p className="text-green-700">{t('onboarding.step3.done', { count: entitiesCount })}</p>}
+        {isError && <p className="text-red-700">{t('onboarding.step3.error')}</p>}
+        {!connector && <p>{t('onboarding.step3.waitingInitial')}</p>}
       </div>
       <button className="btn-primary" disabled={!isDone} onClick={() => onNext({ step: 4 })}>
-        המשך
+        {t('common.continue')}
       </button>
       <button className="btn-secondary block" onClick={() => onNext({ step: 4 })}>
-        דלג בינתיים (אפשר להשלים סנכרון מאוחר יותר)
+        {t('onboarding.step3.skip')}
       </button>
     </div>
   );
 }
 
 function StepDone({ draft, onFinish }: { draft: Draft; onFinish: () => void }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-600">ההקמה הושלמה! להתקנת התוסף אצל עובדים:</p>
+      <p className="text-sm text-gray-600">{t('onboarding.step4.complete')}</p>
       <div className="rounded-lg bg-gray-100 p-4">
-        <p className="mb-1 text-xs text-gray-500">קוד החברה (API key)</p>
+        <p className="mb-1 text-xs text-gray-500">{t('onboarding.step4.apiKeyLabel')}</p>
         <code className="block break-all rounded bg-gray-800 p-2 text-xs text-green-300">{draft.apiKey}</code>
         <button
           className="btn-secondary mt-2"
@@ -384,16 +353,16 @@ function StepDone({ draft, onFinish }: { draft: Draft; onFinish: () => void }) {
             setCopied(true);
           }}
         >
-          {copied ? 'הועתק!' : 'העתק'}
+          {copied ? t('common.copied') : t('common.copy')}
         </button>
       </div>
       <ol className="list-inside list-decimal space-y-1 text-sm text-gray-700">
-        <li>הוסף עובדים במסך "עובדים" - כל עובד יקבל קוד התקנה אישי</li>
-        <li>כל עובד מתקין את תוסף הכרום ומזין את קוד ההתקנה שלו</li>
-        <li>זהו - הודעות עם מידע רגיש יוסתרו אוטומטית לפני שליחה לכלי AI</li>
+        <li>{t('onboarding.step4.step1')}</li>
+        <li>{t('onboarding.step4.step2')}</li>
+        <li>{t('onboarding.step4.step3')}</li>
       </ol>
       <button className="btn-primary" onClick={onFinish}>
-        לכניסה למערכת הניהול
+        {t('onboarding.step4.enter')}
       </button>
     </div>
   );
@@ -410,12 +379,13 @@ function Field({
   howToFind?: string;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
       {children}
       {help && <p className="mt-1 text-xs text-gray-500">{help}</p>}
-      {howToFind && <HowToFind label="איך מוצאים את זה?">{howToFind}</HowToFind>}
+      {howToFind && <HowToFind label={t('onboarding.howToFind')}>{howToFind}</HowToFind>}
     </label>
   );
 }

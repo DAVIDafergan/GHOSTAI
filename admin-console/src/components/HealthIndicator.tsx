@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, HealthCheckResult } from '../api/client';
 import { useSession } from '../context/SessionContext';
 import { COLORS } from '../colors';
@@ -13,6 +14,7 @@ const POLL_INTERVAL_MS = 60_000;
  */
 export function HealthIndicator() {
   const { session } = useSession();
+  const { t, i18n } = useTranslation();
   const [check, setCheck] = useState<HealthCheckResult | null>(null);
   const [checkedOnce, setCheckedOnce] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -50,15 +52,16 @@ export function HealthIndicator() {
   if (!check) {
     return (
       <div className="mb-4 space-y-1">
-        <div className={`rounded-lg px-3 py-2 text-xs ${COLORS.neutral}`}>טרם בוצעה בדיקת תקינות</div>
+        <div className={`rounded-lg px-3 py-2 text-xs ${COLORS.neutral}`}>{t('health.notYetRun')}</div>
         <button className="btn-secondary w-full text-xs" onClick={handleRunNow} disabled={running}>
-          {running ? 'בודק...' : 'הרץ בדיקה עכשיו'}
+          {running ? t('health.running') : t('health.runNow')}
         </button>
       </div>
     );
   }
 
   const isHealthy = check.success;
+  const locale = i18n.language === 'he' ? 'he-IL' : 'en-US';
 
   return (
     <div className="mb-4">
@@ -68,18 +71,16 @@ export function HealthIndicator() {
         onClick={() => setExpanded((v) => !v)}
       >
         <span>{isHealthy ? '🟢' : '🔴'}</span>
-        <span className="flex-1 text-right">
-          {isHealthy ? 'המערכת פעילה ומאמתת חסימות' : 'הבדיקה האחרונה נכשלה - לפרטים'}
-        </span>
+        <span className="flex-1 text-start">{isHealthy ? t('health.systemActive') : t('health.lastCheckFailed')}</span>
       </button>
       <p className="mt-1 px-1 text-[11px] text-gray-400">
-        נבדק לאחרונה: {new Date(check.ranAt).toLocaleString('he-IL')}
+        {t('health.lastChecked', { time: new Date(check.ranAt).toLocaleString(locale) })}
       </p>
       {expanded && (
         <div className="mt-2 space-y-2 rounded-lg border border-gray-200 p-3 text-xs">
           {!isHealthy && check.detail && <p className="text-red-600">{check.detail}</p>}
           <button className="btn-secondary w-full text-xs" onClick={handleRunNow} disabled={running}>
-            {running ? 'בודק...' : 'הרץ בדיקה עכשיו'}
+            {running ? t('health.running') : t('health.runNow')}
           </button>
         </div>
       )}

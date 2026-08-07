@@ -1,0 +1,323 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "back": "Back",
+    "continue": "Continue",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "retry": "Retry",
+    "delete": "Delete",
+    "unknownError": "Unknown error",
+    "appName": "Nistar",
+    "help": "Help",
+    "language": "Language"
+  },
+  "layout": {
+    "nav": {
+      "dashboard": "Dashboard",
+      "employees": "Employees",
+      "sensitiveData": "Sensitive Data",
+      "settings": "Detection Settings",
+      "guide": "Admin Guide"
+    },
+    "logout": "Log out"
+  },
+  "entityTypes": {
+    "name": "Name",
+    "id_number": "ID number",
+    "case_number": "Case number",
+    "amount": "Amount",
+    "email": "Email",
+    "phone": "Phone"
+  },
+  "help": {
+    "dashboard": {
+      "title": "Dashboard",
+      "body": "This screen shows an overview of sensitive-data protection across the organization: how many blocks happened this month, how many employees are active, which data sources are connected, and a 30-day blocks chart. Behavioral anomalies (e.g. an employee with an unusually high number of blocks) are surfaced at the top for immediate attention."
+    },
+    "employees": {
+      "title": "Employees",
+      "body": "Manage the organization's employee list here. You can add a single employee or bulk-import a list from a CSV file. Each employee gets a personal install code to enter into their Chrome extension. Clicking an employee row opens their profile with block history."
+    },
+    "sensitiveData": {
+      "title": "Sensitive Data",
+      "body": "This tab connects directly to the connector running on your network and shows which values (names, ID numbers, etc.) are recognized as sensitive and being tracked. You can add values manually, remove values from tracking (individually or in bulk from a file), and export everything to CSV. The central Nistar server never sees raw values - only encrypted signatures of them."
+    },
+    "settings": {
+      "title": "Detection Settings",
+      "body": "Here you choose which data types (name, ID number, phone, etc.) the system checks for, and the minimum confidence level required before a block actually happens. A higher threshold reduces false positives but may miss edge cases."
+    }
+  },
+  "guide": {
+    "title": "Admin Guide",
+    "intro": "A short guide to understanding Nistar and how to use it - no technical jargon.",
+    "whatIsTitle": "What is Nistar?",
+    "whatIsBody": "Nistar is a browser extension and admin console that prevents employees from accidentally sending sensitive information (customer names, ID numbers, and more) to external AI tools like ChatGPT or Claude. All checking happens on the employee's own computer - no text is ever sent to an external server for the detection itself.",
+    "howItWorksTitle": "How does it work?",
+    "howItWorksBody": "The extension checks every message an employee is about to send to an AI tool against a list of sensitive values stored by you (not by us), kept only as encrypted signatures. If a match is found, the message is blocked or redacted before it's sent, and the event is recorded in the audit log.",
+    "faqTitle": "Frequently asked questions",
+    "faq": [
+      {
+        "q": "Can an employee remove the extension themselves?",
+        "a": "No, if the extension was installed and enforced via Chrome Enterprise Policy by your IT department - in that case the employee cannot remove or disable the extension on their own, and this is the recommended setup for organizational use."
+      },
+      {
+        "q": "Is the sensitive data sent to you or to a third party?",
+        "a": "No. Raw values (like a name or ID number) always stay with you - on your network or the employee's machine. Only one-way signatures (hashes) of them are sent to the Nistar server, and the original value cannot be reconstructed from them."
+      },
+      {
+        "q": "What happens when sensitive data is found in a message?",
+        "a": "Depending on your settings, the message is blocked from being sent, or the sensitive parts are automatically redacted before sending. The event is recorded in the audit log for later review."
+      },
+      {
+        "q": "Does this work for files too (PDF, Word, Excel)?",
+        "a": "Yes. When an employee uploads a supported file to an AI tool, the extension scans the file's content locally and shows a warning dialog if sensitive data is found, before the file is sent."
+      },
+      {
+        "q": "What do we do when an employee leaves the organization?",
+        "a": "Remove the employee from the 'Employees' screen - their install code is immediately deactivated and can no longer be used with the extension."
+      }
+    ]
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "loading": "Loading...",
+    "loadError": "Error loading data.",
+    "noDataTitle": "No data yet",
+    "noDataBody": "Make sure the extension is installed and active for employees, and that the connector is running and connected.",
+    "noDataCta": "Manage employees",
+    "blocksThisMonth": "Blocks this month",
+    "activeEmployees": "Active employees",
+    "connectors": "Connectors",
+    "noConnectors": "No connector connected",
+    "blocksChartTitle": "Blocks over the last 30 days",
+    "noChartData": "No data to show yet",
+    "recentActivityTitle": "Recent activity log",
+    "noRecentActivity": "No records yet",
+    "table": {
+      "date": "Time",
+      "employee": "Employee",
+      "type": "Type",
+      "platform": "Platform",
+      "action": "Action"
+    }
+  },
+  "anomaly": {
+    "title": "Behavioral anomalies",
+    "none": "No anomalies detected.",
+    "allClear": "No unusual activity patterns detected in the last {{days}} days.",
+    "headline": "Anomalies detected - {{count}} employees to review (last {{days}} days)",
+    "blocksThisWeek": "{{count}} blocks this week",
+    "reasons": {
+      "high_blocks": "Significantly higher-than-usual blocks",
+      "repeated_override": "Repeated attempts to override a block",
+      "unusual_hours": "Activity at unusual hours"
+    }
+  },
+  "employees": {
+    "title": "Employees",
+    "addOne": "Add a single employee",
+    "namePlaceholder": "Name (optional)",
+    "nameLabel": "Name",
+    "emailLabel": "Email",
+    "add": "Add",
+    "adding": "Adding...",
+    "bulkImportTitle": "Bulk import from CSV",
+    "bulkImportHelp": "Required columns: name,email",
+    "chooseFile": "Choose file",
+    "confirmImport": "Confirm import",
+    "importing": "Importing...",
+    "status": {
+      "active": "Active",
+      "not_installed": "Not installed yet",
+      "inactive": "Inactive 30+ days",
+      "disabled": "Disabled"
+    },
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "status": "Status",
+      "joined": "Joined",
+      "totalBlocks": "Total blocks",
+      "lastActive": "Last active",
+      "installCode": "Install code"
+    },
+    "installCodeLabel": "Employee install code (shown once):",
+    "csvColumnsHelp": "Bulk import (CSV, columns: email, name - optional)",
+    "invalidEmail": "Invalid email address",
+    "alreadyExists": "Already exists",
+    "genericError": "Error",
+    "duplicateEmailError": "An employee with this email already exists.",
+    "addError": "Error adding the employee. Check the email address.",
+    "importCount": "Import {{count}} employees",
+    "disable": "Disable",
+    "rowLabel": "Row {{n}}",
+    "noEmployees": "No employees yet. Add the first one above."
+  },
+  "employeeProfile": {
+    "back": "Back to employees",
+    "notFound": "Employee not found.",
+    "installCode": "Install code",
+    "status": "Status",
+    "totalBlocks": "Total blocks",
+    "joined": "Joined",
+    "lastActive": "Last active",
+    "last30Days": "In the last 30 days",
+    "overrides": "Block overrides",
+    "blocksByDay": "Blocks by day",
+    "historyTitle": "Block history",
+    "noHistory": "No events for this employee yet.",
+    "blocked": "Blocked",
+    "table": {
+      "date": "Time",
+      "eventType": "Event type",
+      "entityType": "Entity type",
+      "platform": "Platform"
+    }
+  },
+  "settings": {
+    "title": "Detection Settings",
+    "confidenceThreshold": "Confidence threshold",
+    "confidenceHelp": "Lower values increase sensitivity (more blocks, including possible false positives). Higher values reduce false positives but may miss borderline matches.",
+    "thresholdDescription": "At the current threshold ({{threshold}}), entities with confidence below {{threshold}}% will not be blocked.",
+    "entityTypesTitle": "Active data types",
+    "save": "Save settings",
+    "saved": "Saved successfully"
+  },
+  "health": {
+    "title": "Health check",
+    "runNow": "Run check now",
+    "running": "Checking...",
+    "lastCheck": "Last check",
+    "statusOk": "Healthy",
+    "statusFail": "Failed",
+    "statusUnknown": "Unknown",
+    "history": "Check history",
+    "notYetRun": "No health check has run yet",
+    "systemActive": "System is active and verifying blocks",
+    "lastCheckFailed": "The last check failed - see details",
+    "lastChecked": "Last checked: {{time}}",
+    "systemHealthTitle": "System Health",
+    "systemHealthSubtitle": "Results of automated synthetic tests over time, across all companies",
+    "noHistory": "No check history yet.",
+    "chain": {
+      "companyCreate": "Create test company",
+      "employeeCreate": "Add test employee",
+      "blockSimulate": "Simulate a block",
+      "auditVerify": "Verify audit log",
+      "dashboardVerify": "Verify dashboard",
+      "cleanup": "Clean up test data"
+    }
+  },
+  "onboarding": {
+    "title": "Set up Nistar",
+    "stepOf": "Step {{step}} of 4",
+    "step1": {
+      "operatorNotice": "This screen is for you, as the Nistar operator, to create a new customer company - not for the customer themselves. Fill in the details of the customer you are setting up an account for.",
+      "companyName": "Customer company name",
+      "companyNameHelp": "The name shown in this customer's admin console and reports. You can change it later.",
+      "username": "Username (operator account)",
+      "usernameHelp": "Not the customer's - this is the operator account that you, as the system operator, configured on the server (the SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD environment variables on Railway). It identifies you as authorized to create new customer companies, and is never given to customers.",
+      "password": "Password (operator account)",
+      "contactEmail": "Customer contact email (optional)",
+      "contactEmailHelp": "For receiving alerts about unusual activity and periodic reports for this customer. You can also fill this in later on the settings screen.",
+      "advanced": "Advanced settings (usually no need to change)",
+      "backendUrl": "Backend server URL",
+      "backendUrlHelp": "The API address of the Nistar server you set up. This is a fixed address for your deployment - it stays the same for every customer company you create, and you shouldn't need to change it here unless you have a separate deployment.",
+      "backendUrlHowToFind": "This is the web address (URL) of your backend server, e.g. https://backend-production-xxxx.up.railway.app - you'll find it in the Railway dashboard, under the backend service.",
+      "creating": "Creating company...",
+      "errorAuth": "Incorrect username or password. Make sure you entered the correct operator credentials (SUPER_ADMIN_USERNAME/SUPER_ADMIN_PASSWORD, configured for your system operators on Railway).",
+      "errorGeneric": "Could not create the company. Make sure the server address is correct and the server is running."
+    },
+    "step2": {
+      "sourceType": "Data source type",
+      "sourceTypeHelp": "The source the connector will read the sensitive data from that needs protecting (e.g. customer names and ID numbers).",
+      "sourceCsv": "CSV file",
+      "sourceSalesforce": "Salesforce (coming soon)",
+      "sourceGenericApi": "Generic API (coming soon)",
+      "createConnector": "Create connection",
+      "connectorIntro": "The connector is a small piece of software that runs inside your own network (not ours) - it reads the sensitive data locally, sends out only encrypted signatures of it, and never the original values.",
+      "apiKeyTitle": "1. Your company's API key",
+      "apiKeyHelp": "Shown only once - copy and store it somewhere safe (e.g. a password manager). You'll need it in the config file in step 3.",
+      "configTitle": "2. Prepare a config file named connector.config.json on the machine that will run the connector",
+      "configExample": "A full example you can copy and edit:",
+      "credentialsHowToFindLabel": "How do I find host / port / connection string / credentials?",
+      "credentialsHowToFind": "These are the connection details for your database (e.g. PostgreSQL): host and port are the address and port of the server where the database lives (usually 5432 for PostgreSQL), and user/password are credentials for a read-only user. These details are held by whoever manages your database or CRM system (your IT/DevOps team), or in the connection settings of the tool used to manage the data. Don't use root/primary credentials - it's recommended to create a dedicated read-only user.",
+      "runTitle": "3. Run the connector with the file you prepared",
+      "checkConnection": "Check connection",
+      "checking": "Checking...",
+      "connectedOk": "✓ Connected",
+      "notYet": "✗ No connection detected from the connector yet. Make sure you ran it with the correct API key and that it has access to the server."
+    },
+    "step3": {
+      "waiting": "Waiting for the initial sync from the connector...",
+      "syncing": "Syncing... {{count}} records scanned so far",
+      "done": "✓ Sync complete! {{count}} records scanned.",
+      "error": "The sync failed or stopped midway. Run the connector again - it will resume from where it left off, not start over.",
+      "waitingInitial": "Waiting for initial connection...",
+      "skip": "Skip for now (you can finish syncing later)"
+    },
+    "step4": {
+      "complete": "Setup complete! To install the extension for employees:",
+      "apiKeyLabel": "Company code (API key)",
+      "step1": "Add employees on the \"Employees\" screen - each employee gets a personal install code",
+      "step2": "Each employee installs the Chrome extension and enters their install code",
+      "step3": "That's it - messages with sensitive data will be automatically redacted before being sent to AI tools",
+      "enter": "Enter the admin console"
+    },
+    "howToFind": "How do I find this?"
+  },
+  "sensitiveData": {
+    "title": "Sensitive Data",
+    "changeUrl": "Change connector address",
+    "connecting": "Connecting to the connector...",
+    "unreachableTitle": "Cannot connect to the connector",
+    "unreachableHelp": "Make sure the connector is running (daemon mode with apiPort configured), that it's reachable over the network from this browser, and that the URL is correct. If the admin console is served over HTTPS and the connector over plain HTTP at a non-localhost address, the browser may be blocking the request (mixed content) - run the check from a browser on the same local network, or set up TLS/a tunnel for the connector.",
+    "address": "Address",
+    "connectedSummary": "Connected - {{active}} active entities tracked ({{total}} total, including inactive)",
+    "unsetTitle": "Connect to the connector",
+    "unsetBody": "This tab connects directly to the connector running on your network - not through the central Nistar server, which never sees raw values. Enter the address where the connector is reachable from this browser (e.g. http://localhost:4100). The address will be saved for your company - you won't need to enter it again next time, unless the actual connection fails.",
+    "connect": "Connect",
+    "addManualTitle": "Add a manual entity",
+    "valuePlaceholder": "The value (e.g. full name)",
+    "addToTracking": "Add to tracking",
+    "bulkRemoveTitle": "Bulk remove from tracking (CSV, columns: value,entityType)",
+    "bulkRemoveHelp": "Example: David Levi,name - useful for \"right to be forgotten\" requests affecting many values at once.",
+    "invalidRow": "Invalid row - value,entityType required",
+    "rowLabel": "Row {{n}}",
+    "removedDone": "✓ Removed from tracking",
+    "pending": "Pending",
+    "processing": "Processing...",
+    "removeCount": "Remove {{count}} entities from tracking",
+    "filterType": "Type",
+    "all": "All",
+    "filterStatus": "Status",
+    "statusActive": "Actively tracked",
+    "statusExcluded": "Removed from tracking",
+    "filterSince": "Detected since",
+    "search": "Search",
+    "searchPlaceholder": "Search by value...",
+    "exportCsv": "Export to CSV (current filters)",
+    "exporting": "Exporting...",
+    "noEntities": "No entities match the current filters.",
+    "showing": "Showing {{shown}} of {{total}}",
+    "table": {
+      "value": "Value",
+      "type": "Type",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen",
+      "origin": "Origin",
+      "status": "Status"
+    },
+    "originManual": "Manual",
+    "originSync": "Auto sync",
+    "restore": "Restore tracking",
+    "remove": "Remove from tracking",
+    "errorFetch": "Error saving the address",
+    "errorAdd": "Error adding",
+    "errorExport": "Error exporting"
+  }
+}

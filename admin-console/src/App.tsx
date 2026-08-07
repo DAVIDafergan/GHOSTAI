@@ -7,6 +7,7 @@ import { Employees } from './pages/Employees';
 import { EmployeeProfile } from './pages/EmployeeProfile';
 import { Settings } from './pages/Settings';
 import { SensitiveData } from './pages/SensitiveData';
+import { AdminGuide } from './pages/AdminGuide';
 
 function AppRoutes() {
   const { session } = useSession();
@@ -27,6 +28,7 @@ function AppRoutes() {
         <Route path="/employees/:id" element={<EmployeeProfile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/sensitive-data" element={<SensitiveData />} />
+        <Route path="/guide" element={<AdminGuide />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -2054,3 +2054,69 @@ from before - now scoped exactly to what's still actually open.
 6. Repeat steps 2-5 on Claude.ai (its own attach UI, likely a paperclip
    icon).
 
+## Shabbat work session (2026-08-07/08, autonomous, ~48h window)
+
+Working through a large multi-part list on a dedicated `shabbat-work`
+branch per explicit safety instruction - **no push to `main`, no Railway
+deploy, for the entire session**. Every commit goes to `shabbat-work`
+only; the user will review and merge/deploy themselves. Timestamps added
+per commit below as instructed.
+
+**[2026-08-07 19:07] Part 4 item 9 (start here, per instruction) -
+verified, not re-fixed**: the file-type-allowlist bug (images incorrectly
+showing the "couldn't verify" dialog) was already fixed and committed as
+`ed4a35d` in the prior round, and this branch was created from `main`
+*after* that commit - so it's already included. Confirmed rather than
+assumed: re-ran the exact regression test (`extension.spec.ts`'s "file
+upload" test, including the PNG-passthrough case) against a fresh build
+on this branch - passes. No code change needed for this item; moving
+straight to Part 1.
+
+**[2026-08-07 20:15] Part 1 item 1 - real i18n infrastructure for
+admin-console (he/en, full RTL/LTR)**: added `i18next` + `react-i18next`
+(already installed for all three frontend apps in a prior step). Built
+`admin-console/src/i18n/index.ts`: language choice persisted in
+`localStorage` (`piiShieldLang`), `document.documentElement.lang`/`dir`
+switched dynamically on every language change (not just text - this is
+what actually flips the whole layout direction). Wrote two full locale
+files, `locales/he.json` and `locales/en.json`, covering every
+user-facing string across the app (nav, dashboard, employees, employee
+profile, settings, sensitive-data, onboarding wizard, health indicator,
+anomaly widget, entity type labels, and a new admin-guide namespace -
+see next entry). Converted every admin-console component to
+`useTranslation()` - no hardcoded Hebrew strings remain in `.tsx` files
+(verified by re-reading each converted file top to bottom).
+
+RTL/LTR scope decision (documented as instructed, since this required
+a judgment call): the codebase used physical Tailwind utilities
+(`text-right`, `border-l`, `mr-*`) throughout. Converted every touched
+component to logical-property utilities (`text-start`/`text-end`,
+`border-s`/`border-e`, `ps-*`/`pe-*` where present) so the layout
+genuinely mirrors in English, not just the text. Verified this actually
+works end-to-end with a real headless-browser screenshot comparison
+(Hebrew RTL vs. English LTR on the onboarding wizard) - confirmed the
+sidebar/toggle position, text alignment, and reading direction all flip
+correctly, not just individual strings. This was done for every page
+that got touched in this pass (all of them); no page was left with a
+hardcoded `dir="rtl"`.
+
+Also added, since they were natural to build alongside the i18n pass and
+serve Part 2 directly: a reusable `LanguageToggle` component (used in
+the sidebar and on the pre-login onboarding screen), a `HelpTooltip`
+component (small "?" icon + popover, bilingual via the same locale
+files) wired into Dashboard/Employees/Settings/SensitiveData per item 5,
+and a standalone `AdminGuide` page (item 6 - "what is Nistar", "how it
+works", and a bilingual FAQ including the Chrome Enterprise Policy
+answer) reachable from the sidebar nav. `tsc --noEmit` and `vite build`
+both pass; verified visually with Playwright screenshots (Hebrew and
+English) of the onboarding flow - no console errors, correct mirroring.
+Pages that require a logged-in session (Dashboard/Employees/etc.) were
+verified via typecheck + build only in this pass, not yet screenshotted
+live - flagging as a follow-up to spot-check before the final summary.
+
+Not yet done: the matching visual redesign pass (motion/spacing polish
+beyond the shared CSS upgrade) for admin-console is partially covered by
+this same pass (framer-motion page-transition fades added to every
+page), full super-admin i18n/redesign, and the landing page English
+version - continuing now.
+

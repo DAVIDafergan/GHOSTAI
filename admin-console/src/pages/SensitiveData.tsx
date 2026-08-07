@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
 import { useSession } from '../context/SessionContext';
 import { api, ApiError } from '../api/client';
 import { connectorApi, ConnectorApiError, ConnectorEntity, ConnectorHealth, normalizeConnectorUrl } from '../api/connectorClient';
-import { ENTITY_TYPE_LABELS, ALL_ENTITY_TYPES } from '../entityTypes';
+import { ALL_ENTITY_TYPES } from '../entityTypes';
 import { COLORS } from '../colors';
+import { HelpTooltip } from '../components/HelpTooltip';
 
 type ConnectionState = 'loading' | 'checking' | 'unreachable' | 'connected' | 'unset';
 
 export function SensitiveData() {
   const { session } = useSession();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language === 'he' ? 'he-IL' : 'en-US';
   const [connectorUrl, setConnectorUrl] = useState('');
   const [urlInput, setUrlInput] = useState('');
   const [state, setState] = useState<ConnectionState>('loading');
@@ -47,7 +52,7 @@ export function SensitiveData() {
       setState('connected');
     } catch (err) {
       setState('unreachable');
-      setErrorDetail(err instanceof ConnectorApiError ? err.message : 'שגיאה לא ידועה');
+      setErrorDetail(err instanceof ConnectorApiError ? err.message : t('common.unknownError'));
     }
   }
 
@@ -97,7 +102,7 @@ export function SensitiveData() {
       setTotal(res.total);
     } catch (err) {
       setState('unreachable');
-      setErrorDetail(err instanceof ConnectorApiError ? err.message : 'שגיאה לא ידועה');
+      setErrorDetail(err instanceof ConnectorApiError ? err.message : t('common.unknownError'));
     } finally {
       setLoadingEntities(false);
     }
@@ -118,7 +123,7 @@ export function SensitiveData() {
       await api.updateSettings(session, { connectorAdminUrl: normalized });
       setConnectorUrl(normalized);
     } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'שגיאה בשמירת הכתובת');
+      setSaveError(err instanceof ApiError ? err.message : t('sensitiveData.errorFetch'));
     } finally {
       setSaving(false);
     }
@@ -157,7 +162,7 @@ export function SensitiveData() {
       setManualValue('');
       await Promise.all([loadEntities(), refreshHealth()]);
     } catch (err) {
-      setManualError(err instanceof ConnectorApiError ? err.message : 'שגיאה בהוספה');
+      setManualError(err instanceof ConnectorApiError ? err.message : t('sensitiveData.errorAdd'));
     }
   }
 
@@ -207,7 +212,7 @@ export function SensitiveData() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError(err instanceof ConnectorApiError ? err.message : 'שגיאה בייצוא');
+      setExportError(err instanceof ConnectorApiError ? err.message : t('sensitiveData.errorExport'));
     } finally {
       setExporting(false);
     }
@@ -226,7 +231,7 @@ export function SensitiveData() {
       const rows = dataLines.map((line) => {
         const [value, type] = line.split(',').map((s) => s.trim());
         if (!value || !type || !ALL_ENTITY_TYPES.includes(type)) {
-          return { value: value ?? '', entityType: type ?? '', error: 'שורה לא תקינה - נדרש value,entityType' };
+          return { value: value ?? '', entityType: type ?? '', error: t('sensitiveData.invalidRow') };
         }
         return { value, entityType: type };
       });
@@ -245,7 +250,7 @@ export function SensitiveData() {
         await connectorApi.exclude(connectorUrl, session.apiKey, updated[i].value, updated[i].entityType);
         updated[i] = { ...updated[i], done: true };
       } catch (err) {
-        updated[i] = { ...updated[i], error: err instanceof ConnectorApiError ? err.message : 'שגיאה' };
+        updated[i] = { ...updated[i], error: err instanceof ConnectorApiError ? err.message : t('employees.genericError') };
       }
     }
     setBulkRows(updated);
@@ -253,11 +258,18 @@ export function SensitiveData() {
     await Promise.all([loadEntities(), refreshHealth()]);
   }
 
+  const titleWithHelp = (
+    <h1 className="flex items-center gap-2 text-xl font-bold">
+      {t('sensitiveData.title')}
+      <HelpTooltip topic="sensitiveData" />
+    </h1>
+  );
+
   if (state === 'loading') {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-bold">מידע רגיש</h1>
-        <p className="text-sm text-gray-500">טוען...</p>
+        {titleWithHelp}
+        <p className="text-sm text-gray-500">{t('common.loading')}</p>
       </div>
     );
   }
@@ -265,15 +277,10 @@ export function SensitiveData() {
   if (state === 'unset') {
     return (
       <div className="space-y-6">
-        <h1 className="text-xl font-bold">מידע רגיש</h1>
+        {titleWithHelp}
         <div className="card max-w-lg">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">חיבור ל-connector</h2>
-          <p className="mb-4 text-sm text-gray-600">
-            הכרטיסייה הזו מתחברת <b>ישירות</b> ל-connector שרץ אצלכם ברשת - לא דרך שרת Nistar המרכזי,
-            שלעולם לא רואה ערכים גולמיים. הזינו את הכתובת שבה ה-connector נגיש מהדפדפן הזה (למשל{' '}
-            <code dir="ltr">http://localhost:4100</code>). הכתובת תישמר עבור החברה שלכם - לא תצטרכו להזין
-            אותה שוב בכניסה הבאה, אלא אם החיבור בפועל ייכשל.
-          </p>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">{t('sensitiveData.unsetTitle')}</h2>
+          <p className="mb-4 text-sm text-gray-600">{t('sensitiveData.unsetBody')}</p>
           <form onSubmit={handleSaveUrl} className="flex gap-2">
             <input
               className="input"
@@ -283,7 +290,7 @@ export function SensitiveData() {
               required
             />
             <button type="submit" className="btn-primary shrink-0" disabled={saving}>
-              {saving ? 'שומר...' : 'התחבר'}
+              {saving ? t('common.saving') : t('sensitiveData.connect')}
             </button>
           </form>
           {saveError && <p className="mt-2 text-sm text-red-600">{saveError}</p>}
@@ -293,9 +300,14 @@ export function SensitiveData() {
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="space-y-6"
+    >
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">מידע רגיש</h1>
+        {titleWithHelp}
         <button
           className="text-xs text-gray-500 hover:underline"
           onClick={() => {
@@ -303,25 +315,25 @@ export function SensitiveData() {
             setUrlInput(connectorUrl);
           }}
         >
-          שנה כתובת connector
+          {t('sensitiveData.changeUrl')}
         </button>
       </div>
 
       {state === 'checking' && (
         <div className={`card flex items-center gap-2 ${COLORS.neutral}`}>
           <span className={`h-2.5 w-2.5 shrink-0 animate-pulse rounded-full ${COLORS.neutralDot}`} />
-          <p className="text-sm">מתחבר ל-connector...</p>
+          <p className="text-sm">{t('sensitiveData.connecting')}</p>
         </div>
       )}
 
       {state === 'unreachable' && (
-        <div className={`card border-r-4 border-red-500 ${COLORS.critical}`}>
+        <div className={`card border-s-4 border-red-500 ${COLORS.critical}`}>
           <div className="flex items-center gap-2">
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${COLORS.criticalDot}`} />
-            <p className="text-sm font-medium">לא ניתן להתחבר ל-connector</p>
+            <p className="text-sm font-medium">{t('sensitiveData.unreachableTitle')}</p>
           </div>
           <p className="mt-2 text-xs text-gray-600">
-            כתובת: <code dir="ltr">{connectorUrl}</code>
+            {t('sensitiveData.address')}: <code dir="ltr">{connectorUrl}</code>
             {errorDetail && (
               <>
                 {' - '}
@@ -329,59 +341,49 @@ export function SensitiveData() {
               </>
             )}
           </p>
-          <p className="mt-1 text-xs text-gray-500">
-            ודאו שה-connector רץ (מצב daemon עם apiPort מוגדר), שיש לו גישה רשתית מהדפדפן הזה, ושכתובת ה-URL
-            נכונה. אם ה-admin console נגיש דרך HTTPS וה-connector דרך HTTP רגיל בכתובת שאינה localhost, ייתכן
-            שהדפדפן חוסם את הבקשה (mixed content) - הריצו את הבדיקה מדפדפן שנמצא באותה רשת מקומית, או הגדירו
-            TLS/מנהרה עבור ה-connector.
-          </p>
+          <p className="mt-1 text-xs text-gray-500">{t('sensitiveData.unreachableHelp')}</p>
           <button className="btn-secondary mt-3 text-xs" onClick={() => checkConnection(connectorUrl)}>
-            נסה שוב
+            {t('common.retry')}
           </button>
         </div>
       )}
 
       {state === 'connected' && (
         <>
-          <div className={`card flex items-center gap-4 border-r-4 border-green-500`}>
+          <div className={`card flex items-center gap-4 border-s-4 border-green-500`}>
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${COLORS.okDot}`} />
             <p className="text-sm">
-              מחובר - {health?.activeCount} ישויות פעילות במעקב ({health?.entityCount} סה"כ, כולל לא-פעילות)
+              {t('sensitiveData.connectedSummary', { active: health?.activeCount, total: health?.entityCount })}
             </p>
           </div>
 
           <div className="card">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">הוספת ישות ידנית</h2>
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">{t('sensitiveData.addManualTitle')}</h2>
             <form onSubmit={handleAddManual} className="flex items-end gap-2">
               <input
                 className="input"
-                placeholder="הערך (למשל שם מלא)"
+                placeholder={t('sensitiveData.valuePlaceholder')}
                 value={manualValue}
                 onChange={(e) => setManualValue(e.target.value)}
                 required
               />
               <select className="input" value={manualType} onChange={(e) => setManualType(e.target.value)}>
-                {ALL_ENTITY_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {ENTITY_TYPE_LABELS[t]}
+                {ALL_ENTITY_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`entityTypes.${type}`)}
                   </option>
                 ))}
               </select>
               <button type="submit" className="btn-primary shrink-0">
-                הוסף למעקב
+                {t('sensitiveData.addToTracking')}
               </button>
             </form>
             {manualError && <p className="mt-2 text-sm text-red-600">{manualError}</p>}
           </div>
 
           <div className="card">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">
-              הסרה קבוצתית ממעקב (CSV, עמודות: value,entityType)
-            </h2>
-            <p className="mb-3 text-xs text-gray-500">
-              לדוגמה: <code dir="ltr">דוד לוי,name</code> - שימושי לבקשות "זכות להישכח" שמשפיעות על הרבה
-              ערכים בבת אחת.
-            </p>
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">{t('sensitiveData.bulkRemoveTitle')}</h2>
+            <p className="mb-3 text-xs text-gray-500">{t('sensitiveData.bulkRemoveHelp')}</p>
             <input
               type="file"
               accept=".csv,text/csv"
@@ -394,17 +396,17 @@ export function SensitiveData() {
                     {bulkRows.map((row, i) => (
                       <tr key={i} className={row.error ? 'text-red-600' : row.done ? 'text-green-700' : ''}>
                         <td className="py-1">
-                          שורה {i + 1}: {row.value} ({row.entityType})
+                          {t('sensitiveData.rowLabel', { n: i + 1 })}: {row.value} ({row.entityType})
                         </td>
-                        <td className="py-1">{row.error ?? (row.done ? '✓ הוסר ממעקב' : 'ממתין')}</td>
+                        <td className="py-1">{row.error ?? (row.done ? t('sensitiveData.removedDone') : t('sensitiveData.pending'))}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <button className="btn-primary" onClick={handleConfirmBulkExclude} disabled={bulkProcessing}>
                   {bulkProcessing
-                    ? 'מעבד...'
-                    : `הסר ${bulkRows.filter((r) => !r.error && !r.done).length} ישויות ממעקב`}
+                    ? t('sensitiveData.processing')
+                    : t('sensitiveData.removeCount', { count: bulkRows.filter((r) => !r.error && !r.done).length })}
                 </button>
               </div>
             )}
@@ -414,66 +416,64 @@ export function SensitiveData() {
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div className="flex flex-wrap items-end gap-3">
                 <div>
-                  <label className="mb-1 block text-xs text-gray-500">סוג</label>
+                  <label className="mb-1 block text-xs text-gray-500">{t('sensitiveData.filterType')}</label>
                   <select className="input" value={entityType} onChange={(e) => setEntityType(e.target.value)}>
-                    <option value="">הכל</option>
-                    {ALL_ENTITY_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {ENTITY_TYPE_LABELS[t]}
+                    <option value="">{t('sensitiveData.all')}</option>
+                    {ALL_ENTITY_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {t(`entityTypes.${type}`)}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-gray-500">סטטוס</label>
+                  <label className="mb-1 block text-xs text-gray-500">{t('sensitiveData.filterStatus')}</label>
                   <select
                     className="input"
                     value={status}
                     onChange={(e) => setStatus(e.target.value as 'active' | 'excluded' | '')}
                   >
-                    <option value="">הכל</option>
-                    <option value="active">פעיל במעקב</option>
-                    <option value="excluded">הוסר ממעקב</option>
+                    <option value="">{t('sensitiveData.all')}</option>
+                    <option value="active">{t('sensitiveData.statusActive')}</option>
+                    <option value="excluded">{t('sensitiveData.statusExcluded')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-gray-500">זוהה מתאריך</label>
+                  <label className="mb-1 block text-xs text-gray-500">{t('sensitiveData.filterSince')}</label>
                   <input type="date" className="input" value={since} onChange={(e) => setSince(e.target.value)} />
                 </div>
                 <div className="flex-1">
-                  <label className="mb-1 block text-xs text-gray-500">חיפוש</label>
+                  <label className="mb-1 block text-xs text-gray-500">{t('sensitiveData.search')}</label>
                   <input
                     className="input"
-                    placeholder="חיפוש לפי ערך..."
+                    placeholder={t('sensitiveData.searchPlaceholder')}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
               </div>
               <button className="btn-secondary shrink-0 text-xs" onClick={handleExportCsv} disabled={exporting}>
-                {exporting ? 'מייצא...' : 'ייצוא ל-CSV (לפי הסינון הנוכחי)'}
+                {exporting ? t('sensitiveData.exporting') : t('sensitiveData.exportCsv')}
               </button>
             </div>
             {exportError && <p className="mb-3 text-sm text-red-600">{exportError}</p>}
 
             {loadingEntities ? (
-              <p className="text-sm text-gray-500">טוען...</p>
+              <p className="text-sm text-gray-500">{t('common.loading')}</p>
             ) : entities.length === 0 ? (
-              <p className="text-sm text-gray-400">לא נמצאו ישויות התואמות את הסינון.</p>
+              <p className="text-sm text-gray-400">{t('sensitiveData.noEntities')}</p>
             ) : (
               <>
-                <p className="mb-2 text-xs text-gray-500">
-                  מציג {entities.length} מתוך {total}
-                </p>
+                <p className="mb-2 text-xs text-gray-500">{t('sensitiveData.showing', { shown: entities.length, total })}</p>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-right text-gray-500">
-                      <th className="pb-2">ערך</th>
-                      <th className="pb-2">סוג</th>
-                      <th className="pb-2">זוהה לראשונה</th>
-                      <th className="pb-2">נראה לאחרונה</th>
-                      <th className="pb-2">מקור</th>
-                      <th className="pb-2">סטטוס</th>
+                    <tr className="border-b text-start text-gray-500">
+                      <th className="pb-2">{t('sensitiveData.table.value')}</th>
+                      <th className="pb-2">{t('sensitiveData.table.type')}</th>
+                      <th className="pb-2">{t('sensitiveData.table.firstSeen')}</th>
+                      <th className="pb-2">{t('sensitiveData.table.lastSeen')}</th>
+                      <th className="pb-2">{t('sensitiveData.table.origin')}</th>
+                      <th className="pb-2">{t('sensitiveData.table.status')}</th>
                       <th className="pb-2" />
                     </tr>
                   </thead>
@@ -481,26 +481,28 @@ export function SensitiveData() {
                     {entities.map((e) => (
                       <tr key={`${e.entityType}:${e.value}`} className="border-b last:border-0">
                         <td className="py-2 font-mono">{e.value}</td>
-                        <td className="py-2">{ENTITY_TYPE_LABELS[e.entityType] ?? e.entityType}</td>
-                        <td className="py-2 text-gray-500">{new Date(e.firstSeenAt).toLocaleDateString('he-IL')}</td>
-                        <td className="py-2 text-gray-500">{new Date(e.lastSeenAt).toLocaleDateString('he-IL')}</td>
-                        <td className="py-2 text-gray-500">{e.origin === 'manual' ? 'ידני' : 'סנכרון אוטומטי'}</td>
+                        <td className="py-2">{e.entityType ? t(`entityTypes.${e.entityType}`) : e.entityType}</td>
+                        <td className="py-2 text-gray-500">{new Date(e.firstSeenAt).toLocaleDateString(locale)}</td>
+                        <td className="py-2 text-gray-500">{new Date(e.lastSeenAt).toLocaleDateString(locale)}</td>
+                        <td className="py-2 text-gray-500">
+                          {e.origin === 'manual' ? t('sensitiveData.originManual') : t('sensitiveData.originSync')}
+                        </td>
                         <td className="py-2">
                           <span className={`rounded px-2 py-0.5 text-xs ${e.excluded ? COLORS.warning : COLORS.ok}`}>
-                            {e.excluded ? 'הוסר ממעקב' : 'פעיל במעקב'}
+                            {e.excluded ? t('sensitiveData.statusExcluded') : t('sensitiveData.statusActive')}
                           </span>
                         </td>
-                        <td className="py-2 text-left">
+                        <td className="py-2 text-end">
                           <div className="flex justify-end gap-2">
                             <button className="text-xs text-indigo-600 hover:underline" onClick={() => handleToggleExclude(e)}>
-                              {e.excluded ? 'החזר למעקב' : 'הסר ממעקב'}
+                              {e.excluded ? t('sensitiveData.restore') : t('sensitiveData.remove')}
                             </button>
                             {e.origin === 'manual' && (
                               <button
                                 className="text-xs text-red-600 hover:underline"
                                 onClick={() => handleRemoveManual(e)}
                               >
-                                מחק
+                                {t('common.delete')}
                               </button>
                             )}
                           </div>
@@ -514,6 +516,6 @@ export function SensitiveData() {
           </div>
         </>
       )}
-    </div>
+    </motion.div>
   );
 }
